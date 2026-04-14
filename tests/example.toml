@@ -1,0 +1,7 @@
+[task1]
+command = "echo hello_world"
+desc = "First task"
+
+[task2]
+command = "echo 2"
+desc = "Second task"

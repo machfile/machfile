@@ -1,0 +1,19 @@
+[build]
+command = "cargo build"
+desc = "build the project"
+
+[release]
+command = "cargo build --release"
+
+[clean]
+command = "rm -rf target"
+desc = "remove cache and outputs"
+
+[meta]
+desc = "meta task"
+deps = ["clean", "build"]
+
+[deps]
+command = "echo asdf"
+desc = "task with deps"
+deps = ["clean", "build"]

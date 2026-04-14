@@ -1,0 +1,58 @@
+name: Rust
+
+on:
+  push:
+    branches:
+      - "master"
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "Cargo.lock"
+  pull_request:
+    branches:
+      - "master"
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "Cargo.lock"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --verbose
+
+  clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run clippy
+        run: cargo clippy
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run tests
+        run: cargo test
+
+  check_fmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Check formatting
+        run: cargo fmt --check
