@@ -1,3 +1,5 @@
+//! Runs [tasks](`TaskConfig`)
+
 use std::{error::Error, ffi::OsStr, fmt, io, process::Command};
 
 use crossterm::{
@@ -25,8 +27,17 @@ impl fmt::Display for CommandError {
 impl Error for CommandError {}
 
 /// Execute defined commands
+///
+/// # Errors
+///
+/// Returns a [`CommandError`] when the given task was not found or a executed command fails to
+/// spawn or returns an error.
+///
+/// # Panics
+///
+/// Panics if no configuration has been loaded
 pub fn execute(command_name: &str) -> Result<(), CommandError> {
-    let config = get_config();
+    let config = get_config().expect("No configuration was loaded");
     let Some(task): Option<&TaskConfig> = config.tasks.get(command_name) else {
         return Err(CommandError {
             message: "Task {command_name} not found".to_owned(),

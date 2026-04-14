@@ -51,6 +51,7 @@ _update_completion() {
 chpwd() {
     _update_completion
 }
+_update_completion
 "#
         }
         Shell::Bash => {

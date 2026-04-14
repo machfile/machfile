@@ -25,5 +25,10 @@ options.working_directory = "target"
 
 [install]
 script = "cargo install --path ."
+desc = "Install the current version"
+
+[clean_install]
+script = "cargo install --path ."
+desc = "Clean dependencies and artifacts, then install the current version"
 deps = ["clean"]
 

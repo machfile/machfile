@@ -1,3 +1,8 @@
+//! Mach configuration file parsing
+//!
+//! This module includes the structs related to the mach configuration and the functions that find
+//! and parse the supported configuration files
+
 use std::{
     collections::{HashMap, VecDeque},
     env,
@@ -25,6 +30,7 @@ pub enum ConfigParseError {
     InvalidTaskDefinition(String),
 }
 
+/// The main struct holding all [tasks](`TaskConfig`)
 #[derive(Debug, Clone)]
 pub struct Config {
     pub path: PathBuf,
@@ -48,27 +54,42 @@ impl Config {
     }
 }
 
+/// The individual task
+///
+/// Composed of the `TaskOptions` and optionally a description, script and task dependencies
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
     pub options: TaskOptions,
+    /// Vector of `ScriptCommand` that are run in order when the task is executed
     pub script: Option<Vec<ScriptCommand>>,
+    /// The task description shown in the help message
     pub desc: Option<String>,
+    /// Vector of the names of other tasks. The dependencies are executed in order before the tasks
+    /// script is run
     pub deps: Option<Vec<String>>,
 }
 
+/// Configuration options for the environment in which the [`ScriptCommand`]s will be run
 #[derive(Debug, Clone)]
 pub struct TaskOptions {
+    /// Working directory in which all commands will be executed
     pub working_directory: PathBuf,
+    /// Environmental variables that will be added to the environment in which the commands will be
+    /// executed
     pub environment: HashMap<String, String>,
 }
 
+/// Individual command that forms a [task](`TaskConfig`)
 #[derive(Debug, Clone)]
 pub struct ScriptCommand {
+    /// Name of the executable that will be called
     pub command: String,
+    /// Vector of the arguments that will be provided to the command
     pub args: Vec<String>,
 }
 
 impl ScriptCommand {
+    #[must_use]
     pub fn create_sys_command(&self) -> Command {
         let mut command = Command::new(self.command.clone());
         command.args(self.args.clone());
@@ -174,6 +195,23 @@ impl RawTaskOptions {
     }
 }
 
+/// Load a mach configuration into memory
+///
+/// If an override is provided, the provided override is loaded. Otherwise, the function tries to
+/// find a configuration file in the current directory, and in the case of the working directory
+/// being inside a git repository, a configuration file will be searched upwards until the git
+/// boundary.
+///
+/// # Errors
+///
+/// - Returns [`ConfigParseError::NoConfigFile`] if an invalid override is provided
+/// - Returns [`ConfigParseError::CorruptConfigFile`] if the text content of the file can't be
+///   loaded
+/// - Bubbles up any [`ConfigParseError`] from [`parse_config`]
+///
+/// # Panics
+///
+/// This function panics if it can't detect the current working directory
 pub fn load_config(config_override: Option<OsString>) -> Result<(), ConfigParseError> {
     let config_file = if let Some(conf_override) = config_override {
         let path = PathBuf::from(conf_override);
@@ -204,11 +242,18 @@ pub fn load_config(config_override: Option<OsString>) -> Result<(), ConfigParseE
     }
 }
 
-pub fn get_config() -> &'static Config {
-    APP_CONFIG.get().unwrap()
+/// Gets the configuration from memory
+pub fn get_config() -> Option<&'static Config> {
+    APP_CONFIG.get()
 }
 
-fn parse_config(config_str: &str, config_path: &Path) -> Result<Config, ConfigParseError> {
+/// Tries to parse the provided string as `Config`
+///
+/// # Errors
+///
+/// - Returns [`ConfigParseError::InvalidTaskDefinition`] if the TOML can't be parsed
+/// - Returns [`ConfigParseError::EmptyConfig`] if the TOML does not contain any task
+pub fn parse_config(config_str: &str, config_path: &Path) -> Result<Config, ConfigParseError> {
     let Ok(config) = toml::from_str::<RawConfig>(config_str) else {
         return Err(ConfigParseError::InvalidTaskDefinition(
             "Invalid TOML".to_owned(),
