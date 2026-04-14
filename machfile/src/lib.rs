@@ -1,4 +1,4 @@
-//! # `mach`
+//! # `machfile`
 //! > Not a build system
 //!
 //! Mach is a simple task runner, for when a full blown build system is overkill. It can be used
@@ -27,33 +27,7 @@
 //! script = "cargo install --path ."
 //! deps = ["clean"]
 //! ```
-//!
-//! ## Usage
-//!
-//! Run the command without arguments to show all available tasks:
-//!
-//! ```shell
-//! mach
-//! ```
-//!
-//! Run a given task by providing its name to the command:
-//!
-//! ```shell
-//! mach build
-//! ```
-//!
-//! ### Shell auto completion
-//!
-//! `mach` supports completions for `bash` and `zsh`. For this to work, source the setup command
-//! inside your shell initialization script (`.zshrc` or `.bashrc`, for example) providing the name
-//! of your shell.
-//!
-//! ```shell
-//! source <(mach setup_complete zsh)
-//! ```
-//!
-//! <div class="warning">Completion is only available when the binary was build with the `complete`
-//! feature. This feature is part of the default features.</div>
+
 use std::{
     env,
     ffi::OsString,

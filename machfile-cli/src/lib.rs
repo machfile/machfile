@@ -1,8 +1,7 @@
-//! # `mach`
+//! # `machfile-cli`
 //! > Not a build system
 //!
-//! Mach is a simple task runner, for when a full blown build system is overkill. It can be used
-//! both as a CLI tool and as a library.
+//! This is the `mach` CLI utility.
 //!
 //! ## Configuration
 //!

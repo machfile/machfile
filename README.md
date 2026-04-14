@@ -1,6 +1,10 @@
-# Mach
+# Machfile
 
-Simple task runner, for when a full build system is overkill
+> Simple task runner, for when a full build system is overkill
+
+This project provides both a [library](machfile/src/lib.rs) and a 
+[CLI utility](machfile-cli/src/lib.rs). The CLI is the primary implementation of the library, and
+provides the basic functionality of the task runner. The binary is called `mach`.
 
 ## Installation
 
@@ -12,28 +16,40 @@ cargo install --path .
 
 ### Auto-complete setup
 
-Mach supports dynamic auto completion
-
-#### ZSH
-
-Add the following to your `.zshrc`
+Mach supports dynamic auto completion in ZSH and bash:
 
 ```shell
-# Load mach autocompletion
-_update_completion() {
-    local auto_complete_output
-    auto_complete_output=$(mach auto_complete zsh 2>&1)
+# Setup dynamic mach auto-complete
+source <(mach setup_complete [zsh|bash])
+```
 
-    if [[ $? -ne 0 ]]; then
-        compdef -d mach
-        return
-    fi
+## Configuration
 
-    eval "$auto_complete_output"
-}
-chpwd() {
-    _update_completion
-}
+Mach is configured with `mach.toml` files. When inside a `git` repository, mach will search the
+directory tree upwards until finding a `mach.toml` (stopping at the root directory of the `git`
+repository. If not inside a `git` repository, mach must be called from within the same directory as
+the configuration file.
+
+The following is an example configuration:
+
+```toml
+[run]
+script = "cargo run"
+desc = "Run with debug logging"
+options.environment.RUST_LOG = "mach=debug,info"
+
+[clean]
+script = "rm -rf target"
+desc = "Remove cache and outputs"
+
+[check_target_size]
+script = "du -d1 -h"
+desc = "Check directory sizes of cache dirs"
+options.working_directory = "target"
+
+[install]
+script = "cargo install --path ."
+deps = ["clean"]
 ```
 
 ## Usage
