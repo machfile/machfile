@@ -2,6 +2,10 @@
 name = "machfile-cli"
 version = "0.1.0"
 edition = "2024"
+description = "A simple task system, for when a build system is to much"
+repository = "https://github.com/machfile/machfile"
+license = "MIT"
+categories = ["development-tools::build-utils", "command-line-utilities"]
 
 [features]
 default = ["complete"]
@@ -14,7 +18,7 @@ clap_complete = { version = "4.5.66", optional = true }
 crossterm = "0.29.0"
 env_logger = "0.11.9"
 log = "0.4.29"
-machfile = { version = "0.1.0-alpha.1", path = "../machfile" }
+machfile = { version = "0.1.0", path = "../machfile" }
 
 [[bin]]
 name = "mach"

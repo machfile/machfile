@@ -1,11 +1,11 @@
 [package]
 name = "machfile"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition = "2024"
 description = "A simple task system, for when a build system is to much"
-repository = "https://github.com/machfile/mach"
+repository = "https://github.com/machfile/machfile"
 license = "MIT"
-categories = ["command-line-utilities"]
+categories = ["development-tools::build-utils"]
 
 [dependencies]
 log = "0.4.29"
