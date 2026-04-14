@@ -5,6 +5,7 @@ use std::{
     fs::read_to_string,
     path::PathBuf,
     process::Command,
+    sync::OnceLock,
 };
 
 use config_finder::get_mach_file_path;
@@ -12,6 +13,8 @@ use log::error;
 use serde::Deserialize;
 
 mod config_finder;
+
+static APP_CONFIG: OnceLock<Config> = OnceLock::new();
 
 #[derive(Debug, PartialEq)]
 pub enum ConfigParseError {
@@ -22,14 +25,17 @@ pub enum ConfigParseError {
     InvalidTaskDefinition(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
+    pub path: PathBuf,
     pub tasks: HashMap<String, TaskConfig>,
 }
 
 impl Config {
-    fn from_raw(raw: RawConfig) -> Result<Self, ConfigParseError> {
+    fn from_raw(raw: RawConfig, config_path: PathBuf) -> Result<Self, ConfigParseError> {
+        let path = config_path.parent().unwrap().to_path_buf();
         let mut config = Self {
+            path,
             tasks: HashMap::new(),
         };
 
@@ -42,7 +48,7 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaskConfig {
     pub script: Option<Vec<ScriptCommand>>,
     pub desc: Option<String>,
@@ -50,13 +56,13 @@ pub struct TaskConfig {
     pub options: Option<TaskOptions>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaskOptions {
     pub working_directory: Option<PathBuf>,
     pub environment: HashMap<String, String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ScriptCommand {
     pub command: String,
     pub args: Vec<String>,
@@ -176,7 +182,7 @@ impl RawTaskOptions {
     }
 }
 
-pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigParseError> {
+pub fn load_config(config_override: Option<OsString>) -> Result<(), ConfigParseError> {
     let config_file = if let Some(conf_override) = config_override {
         let path = PathBuf::from(conf_override);
         if path.is_file() {
@@ -191,14 +197,26 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
     }?;
 
     // TODO: read file content safely
-    let Ok(file_content) = read_to_string(config_file) else {
+    let Ok(file_content) = read_to_string(config_file.clone()) else {
         return Err(ConfigParseError::CorruptConfigFile);
     };
 
-    parse_config(&file_content)
+    match parse_config(&file_content, config_file) {
+        Err(err) => Err(err),
+        Ok(conf) => {
+            APP_CONFIG
+                .set(conf)
+                .expect("Race condition when setting config");
+            Ok(())
+        }
+    }
 }
 
-fn parse_config(config_str: &str) -> Result<Config, ConfigParseError> {
+pub fn get_config() -> &'static Config {
+    APP_CONFIG.get().unwrap()
+}
+
+fn parse_config(config_str: &str, config_path: PathBuf) -> Result<Config, ConfigParseError> {
     let Ok(config) = toml::from_str::<RawConfig>(config_str) else {
         return Err(ConfigParseError::InvalidTaskDefinition(
             "Invalid TOML".to_owned(),
@@ -209,7 +227,7 @@ fn parse_config(config_str: &str) -> Result<Config, ConfigParseError> {
         return Err(ConfigParseError::EmptyConfig);
     }
 
-    Config::from_raw(config)
+    Config::from_raw(config, config_path)
 }
 
 #[cfg(test)]
@@ -220,12 +238,12 @@ mod tests {
     fn valid_config_parses() {
         let conf = "[task]\ncommand = \"hello world\"";
 
-        assert!(parse_config(conf).is_ok());
+        assert!(parse_config(conf, PathBuf::from("/tmp/mach.toml")).is_ok());
     }
 
     #[test]
     fn empty_config_is_invalid() {
-        let result = parse_config("");
+        let result = parse_config("", PathBuf::from("/tmp/mach.toml"));
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ConfigParseError::EmptyConfig);

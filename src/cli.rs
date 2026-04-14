@@ -3,9 +3,8 @@ use std::env;
 use clap::{Command, builder::styling, crate_authors, crate_version};
 
 use crate::{
-    CommandError,
-    executer::execute,
-    parser::{Config, load_config},
+    executer::{CommandError, execute},
+    parser::{Config, get_config, load_config},
 };
 
 /// Configure styles for clap
@@ -48,27 +47,18 @@ fn build_cli_commands(config: &Config) -> Command {
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
 
-    let Ok(config) = load_config(config_override) else {
+    if load_config(config_override).is_err() {
         println!("Failed to parse configuration");
-        return Err(CommandError);
-    };
-    let matches = build_cli_commands(&config).get_matches();
+        return Err(CommandError {
+            message: "Failed to parse configuration".to_owned(),
+        });
+    }
 
-    let result: Result<(), String> = match matches.subcommand() {
+    let config = get_config();
+    let matches = build_cli_commands(config).get_matches();
+
+    match matches.subcommand() {
         None => unreachable!(),
-        Some((name, _)) => {
-            #[expect(
-                clippy::missing_panics_doc,
-                reason = "clap makes this impossible to panic"
-            )]
-            let command_config = config.tasks.get(name).unwrap();
-            execute(name, command_config);
-            Ok(())
-        }
-    };
-
-    result.map_err(|msg| {
-        println!("Failed to run command: {msg}");
-        CommandError
-    })
+        Some((name, _)) => execute(name),
+    }
 }
