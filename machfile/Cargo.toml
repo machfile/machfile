@@ -1,6 +1,6 @@
 [package]
 name = "machfile"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A simple task system, for when a build system is to much"
 repository = "https://github.com/machfile/machfile"
