@@ -1,18 +1,22 @@
 use std::{
     collections::{HashMap, VecDeque},
+    env,
     ffi::OsString,
     fs::read_to_string,
     path::PathBuf,
     process::Command,
-    str::FromStr,
 };
 
+use config_finder::get_mach_file_path;
 use log::error;
 use serde::Deserialize;
+
+mod config_finder;
 
 #[derive(Debug, PartialEq)]
 pub enum ConfigParseError {
     NoConfigFile,
+    NoConfigFileInRepo,
     CorruptConfigFile,
     EmptyConfig,
     InvalidTaskDefinition,
@@ -122,31 +126,21 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
         let path = PathBuf::from(conf_override);
         if path.is_file() {
             println!("Loading override from {}", path.display());
-            Some(path)
+            Ok(path)
         } else {
             println!("Invalid config file override: {}", path.display());
-            None
+            Err(ConfigParseError::NoConfigFile)
         }
     } else {
-        get_mach_file_path()
-    };
+        get_mach_file_path(&env::current_dir().expect("Failed to get current working dir"))
+    }?;
 
-    if config_file.is_none() {
-        return Err(ConfigParseError::NoConfigFile);
-    }
     // TODO: read file content safely
-    let Ok(file_content) = read_to_string(config_file.unwrap()) else {
+    let Ok(file_content) = read_to_string(config_file) else {
         return Err(ConfigParseError::CorruptConfigFile);
     };
 
     parse_config(&file_content)
-}
-
-fn get_mach_file_path() -> Option<PathBuf> {
-    // TODO: travers up to git boundary if inside git repo
-    let path = PathBuf::from_str("./mach.toml").unwrap();
-
-    if path.is_file() { Some(path) } else { None }
 }
 
 fn parse_config(config_str: &str) -> Result<Config, ConfigParseError> {
