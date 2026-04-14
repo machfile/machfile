@@ -71,7 +71,7 @@ mod tests {
                 if path.is_dir() {
                     continue;
                 } else {
-                    fs::create_dir(path).expect("Failed to create {path:?}");
+                    fs::create_dir(path).expect(&format!("Failed to create {path:?}"));
                 }
             }
         });
