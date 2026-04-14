@@ -53,6 +53,14 @@ pub fn execute(command_name: &str, task: &TaskConfig) {
     if let Some(script) = &task.script {
         for command in script {
             let mut sys_command = command.create_sys_command();
+
+            // If a working directory is set for the task, set it
+            if let Some(opts) = &task.options
+                && let Some(work_dir) = &opts.working_directory
+            {
+                sys_command.current_dir(work_dir);
+            }
+
             let proc = sys_command.spawn();
 
             if let Ok(mut proc) = proc

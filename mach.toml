@@ -1,30 +1,20 @@
 [build]
 script = "cargo build"
-desc = "build the project"
+desc = "Build the project"
 
 [release]
 script  = "cargo build --release"
 
 [clean]
 script = "rm -rf target"
-desc = "remove cache and outputs"
+desc = "Remove cache and outputs"
 
-[meta]
-desc = "meta task"
-deps = ["clean", "build"]
+[test]
+script = "cargo test"
+desc = "Run rust tests"
 
-[deps]
-script = "echo asdf"
-desc = "task with deps"
-deps = ["clean", "build"]
+[check_target_size]
+script = "du -d1 -h"
+desc = "Check directory sizes of cache dirs"
+options.working_directory = "target"
 
-[multi_test]
-script = """echo line1
-    echo line2
-    echo line3
-    """
-desc = "Test multiline script"
-
-[invalid_bin]
-script = "asdfeeee"
-desc = "This should fail"

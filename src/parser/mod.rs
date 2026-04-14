@@ -19,7 +19,7 @@ pub enum ConfigParseError {
     NoConfigFileInRepo,
     CorruptConfigFile,
     EmptyConfig,
-    InvalidTaskDefinition,
+    InvalidTaskDefinition(String),
 }
 
 #[derive(Debug)]
@@ -34,52 +34,7 @@ impl Config {
         };
 
         for (name, raw_task) in raw.tasks {
-            let mut task = TaskConfig {
-                script: None,
-                desc: raw_task.desc,
-                deps: raw_task.deps,
-            };
-
-            if let Some(commands) = raw_task.script {
-                let mut task_commands: Vec<ScriptCommand> = Vec::new();
-                let lines: Vec<&str> = commands
-                    .lines()
-                    .filter_map(|s| {
-                        let trimmed = s.trim();
-
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            Some(trimmed)
-                        }
-                    })
-                    .collect();
-
-                if lines.is_empty() {
-                    error!("Task {name} has declared an empty script");
-                    return Err(ConfigParseError::InvalidTaskDefinition);
-                }
-
-                for command in lines {
-                    let mut parts = command
-                        .split_whitespace()
-                        .map(str::trim)
-                        .collect::<VecDeque<_>>();
-
-                    if parts.is_empty() {
-                        // empty line gets skipped
-                        continue;
-                    }
-
-                    task_commands.push(ScriptCommand {
-                        command: parts.pop_front().unwrap().to_string(),
-                        args: parts.iter().map(|&s| s.to_string()).collect(),
-                    });
-                }
-
-                task.script = Some(task_commands);
-            }
-
+            let task = raw_task.parse(&name)?;
             config.tasks.insert(name, task);
         }
 
@@ -92,6 +47,12 @@ pub struct TaskConfig {
     pub script: Option<Vec<ScriptCommand>>,
     pub desc: Option<String>,
     pub deps: Option<Vec<String>>,
+    pub options: Option<TaskOptions>,
+}
+
+#[derive(Debug)]
+pub struct TaskOptions {
+    pub working_directory: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -119,6 +80,93 @@ struct RawTaskConfig {
     script: Option<String>,
     desc: Option<String>,
     deps: Option<Vec<String>>,
+    options: Option<RawTaskOptions>,
+}
+
+impl RawTaskConfig {
+    fn parse(self, name: &str) -> Result<TaskConfig, ConfigParseError> {
+        let options = if let Some(raw) = self.options {
+            let opts = raw.parse()?;
+            Some(opts)
+        } else {
+            None
+        };
+
+        let mut task = TaskConfig {
+            script: None,
+            desc: self.desc,
+            deps: self.deps,
+            options,
+        };
+
+        if let Some(commands) = self.script {
+            let mut task_commands: Vec<ScriptCommand> = Vec::new();
+            let lines: Vec<&str> = commands
+                .lines()
+                .filter_map(|s| {
+                    let trimmed = s.trim();
+
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                })
+                .collect();
+
+            if lines.is_empty() {
+                error!("Task {name} has declared an empty script");
+                return Err(ConfigParseError::InvalidTaskDefinition(
+                    "Missing script".to_owned(),
+                ));
+            }
+
+            for command in lines {
+                let mut parts = command
+                    .split_whitespace()
+                    .map(str::trim)
+                    .collect::<VecDeque<_>>();
+
+                if parts.is_empty() {
+                    // empty line gets skipped
+                    continue;
+                }
+
+                task_commands.push(ScriptCommand {
+                    command: parts.pop_front().unwrap().to_string(),
+                    args: parts.iter().map(|&s| s.to_string()).collect(),
+                });
+            }
+
+            task.script = Some(task_commands);
+        }
+
+        Ok(task)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RawTaskOptions {
+    working_directory: Option<String>,
+}
+
+impl RawTaskOptions {
+    fn parse(self) -> Result<TaskOptions, ConfigParseError> {
+        let working_directory = if let Some(work_dir) = self.working_directory {
+            let path = PathBuf::from(work_dir);
+            if path.is_dir() {
+                Some(path)
+            } else {
+                return Err(ConfigParseError::InvalidTaskDefinition(
+                    "Invalid working_directory".into(),
+                ));
+            }
+        } else {
+            None
+        };
+
+        Ok(TaskOptions { working_directory })
+    }
 }
 
 pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigParseError> {
@@ -145,7 +193,9 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
 
 fn parse_config(config_str: &str) -> Result<Config, ConfigParseError> {
     let Ok(config) = toml::from_str::<RawConfig>(config_str) else {
-        return Err(ConfigParseError::InvalidTaskDefinition);
+        return Err(ConfigParseError::InvalidTaskDefinition(
+            "Invalid TOML".to_owned(),
+        ));
     };
 
     if config.tasks.is_empty() {
