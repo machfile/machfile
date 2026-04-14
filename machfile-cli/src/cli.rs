@@ -100,7 +100,7 @@ pub fn cli() -> Result<(), CommandError> {
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => run_task(&conf, &name),
+                (name, _) => run_task(&conf, name),
             }
         }
     }

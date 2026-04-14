@@ -94,7 +94,7 @@ chpwd() {
 pub fn handle_auto_complete(args: &ArgMatches) -> Result<(), CommandError> {
     let shell = args.get_one::<Shell>("shell").unwrap();
 
-    if !matches!(shell, Shell::Zsh) {
+    if !matches!(shell, Shell::Zsh) || !matches!(shell, Shell::Bash) {
         return Err(CommandError {
             message: "Unsupported shell".to_owned(),
         });

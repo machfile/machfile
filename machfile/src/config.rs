@@ -25,7 +25,7 @@ impl Config {
         };
 
         for (name, raw_task) in &raw.tasks {
-            let task = raw_task.clone().parse(&name, &path)?;
+            let task = raw_task.clone().parse(name, &path)?;
             config.tasks.insert(name.to_string(), task);
         }
 

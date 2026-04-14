@@ -123,10 +123,7 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
 /// - Returns [`ConfigParseError::InvalidTaskDefinition`] if the Config can't be parsed
 /// - Returns [`ConfigParseError::UnsupportedConfigFileExtension`] if the file extension is not supported (not `toml`, `yaml` or `yml`)
 /// - Returns [`ConfigParseError::EmptyConfig`] if the TOML does not contain any task
-pub fn parse_config(
-    config_str: &str,
-    config_path: &Path,
-) -> Result<Config, ConfigParseError> {
+pub fn parse_config(config_str: &str, config_path: &Path) -> Result<Config, ConfigParseError> {
     let config = match config_path.extension().and_then(|ext| ext.to_str()) {
         Some("toml") => toml::from_str::<RawConfig>(config_str).map_err(|parse_error| {
             ConfigParseError::InvalidTaskDefinition(format!("Invalid TOML: {parse_error}"))
