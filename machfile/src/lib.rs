@@ -27,7 +27,34 @@
 //! script = "cargo install --path ."
 //! deps = ["clean"]
 //! ```
+//!
+//! The same configuration can be written in `yaml` as follows:
+//!
+//! ```yaml
+//! run:
+//!   script: "cargo run"
+//!   desc: "Run with debug logging"
+//!   options:
+//!     environment:
+//!       RUST_LOG: "mach=debug,info"
+//!
+//! clean:
+//!   script: "rm -rf target"
+//!   desc: "Remove cache and outputs"
+//!
+//! check_target_size:
+//!   script: "du -d1 -h"
+//!   desc: "Check directory sizes of cache dirs"
+//!   options:
+//!     working_directory: "target"
+//!
+//! install:
+//!   script: "cargo install --path ."
+//!   deps:
+//!     - "clean"
+//! ```
 
+use log::debug;
 use std::{
     env,
     ffi::OsString,
@@ -79,6 +106,8 @@ pub fn load_config<'a>(config_override: Option<OsString>) -> Result<Config<'a>, 
         get_mach_file_path(&env::current_dir().expect("Failed to get current working dir"))
     }?;
 
+    debug!("Found config file: {config_file:?}");
+
     // TODO: read file content safely
     let Ok(file_content) = read_to_string(config_file.clone()) else {
         return Err(ConfigParseError::CorruptConfigFile);
@@ -91,17 +120,24 @@ pub fn load_config<'a>(config_override: Option<OsString>) -> Result<Config<'a>, 
 ///
 /// # Errors
 ///
-/// - Returns [`ConfigParseError::InvalidTaskDefinition`] if the TOML can't be parsed
+/// - Returns [`ConfigParseError::InvalidTaskDefinition`] if the Config can't be parsed
+/// - Returns [`ConfigParseError::UnsupportedConfigFileExtension`] if the file extension is not supported (not `toml`, `yaml` or `yml`)
 /// - Returns [`ConfigParseError::EmptyConfig`] if the TOML does not contain any task
 pub fn parse_config<'a>(
     config_str: &str,
     config_path: &Path,
 ) -> Result<Config<'a>, ConfigParseError> {
-    let Ok(config) = toml::from_str::<RawConfig>(config_str) else {
-        return Err(ConfigParseError::InvalidTaskDefinition(
-            "Invalid TOML".to_owned(),
-        ));
-    };
+    let config = match config_path.extension().and_then(|ext| ext.to_str()) {
+        Some("toml") => toml::from_str::<RawConfig>(config_str).map_err(|parse_error| {
+            ConfigParseError::InvalidTaskDefinition(format!("Invalid TOML: {parse_error}"))
+        }),
+        Some("yaml") | Some("yml") => {
+            serde_saphyr::from_str::<RawConfig>(config_str).map_err(|parse_error| {
+                ConfigParseError::InvalidTaskDefinition(format!("Invalid YAML: {parse_error}"))
+            })
+        }
+        _ => Err(ConfigParseError::UnsupportedConfigFileExtension),
+    }?;
 
     if config.tasks.is_empty() {
         return Err(ConfigParseError::EmptyConfig);
@@ -119,6 +155,24 @@ mod tests {
         let conf = "[task]\nscript = \"hello world\"";
 
         assert!(parse_config(conf, &PathBuf::from("/tmp/mach.toml")).is_ok());
+    }
+
+    #[test]
+    fn parse_config_succeeds_on_valid_yaml_config() {
+        let conf = "task:\n  script: \"hello world\"";
+
+        assert!(parse_config(conf, &PathBuf::from("/tmp/mach.yaml")).is_ok());
+        assert!(parse_config(conf, &PathBuf::from("/tmp/mach.yml")).is_ok());
+    }
+
+    #[test]
+    fn parse_config_fails_on_invalid_config_extension() {
+        let conf = "task:\n  script: \"hello world\"";
+
+        assert_eq!(
+            parse_config(conf, &PathBuf::from("/tmp/mach.json")).unwrap_err(),
+            ConfigParseError::UnsupportedConfigFileExtension
+        );
     }
 
     #[test]

@@ -68,8 +68,15 @@ pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
 
     let config = match load_config(config_override) {
-        Err(_) => {
-            warn!("Failed to parse configuration");
+        Err(error) => {
+            match error {
+                machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
+                    warn!("{message}");
+                }
+                _ => {
+                    warn!("Failed to load/parse configuration: {error:?}");
+                }
+            }
             None
         }
         Ok(conf) => Some(conf),

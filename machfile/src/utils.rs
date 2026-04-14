@@ -7,6 +7,8 @@ pub enum ConfigParseError {
     CorruptConfigFile,
     EmptyConfig,
     InvalidTaskDefinition(String),
+    MultipleConfigFiles,
+    UnsupportedConfigFileExtension,
     CircularDependencies,
 }
 
