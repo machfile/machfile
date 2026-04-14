@@ -1,7 +1,9 @@
-use std::{env, io};
+use std::env;
 
-use clap::{ArgAction, Command, arg, builder::styling, crate_authors, crate_version, value_parser};
-use clap_complete::{Generator, Shell, generate};
+use clap::{Command, builder::styling, crate_authors, crate_version};
+
+#[cfg(feature = "complete")]
+use crate::complete::{handle_auto_complete, handle_setup_complete};
 
 use crate::{
     executer::{CommandError, execute},
@@ -21,23 +23,20 @@ fn build_clap_styles() -> styling::Styles {
 ///
 /// This constructs dynamic commands based on the found configuration. See [`parse_config`] for how
 /// configuration is loaded.
-fn build_cli_commands(config: &Config) -> Command {
+pub fn build_cli_commands(config: &Config) -> Command {
     let mut app = Command::new("mach")
         .author(crate_authors!("\n"))
         .version(crate_version!())
         .about("Run stuff, get shit done")
         .arg_required_else_help(true)
-        .styles(build_clap_styles())
-        .subcommand(
-            Command::new("auto_complete")
-                .arg(
-                    arg!([shell])
-                        .action(ArgAction::Set)
-                        .required(true)
-                        .value_parser(value_parser!(Shell)),
-                )
-                .hide(true),
-        );
+        .styles(build_clap_styles());
+
+    #[cfg(feature = "complete")]
+    {
+        use crate::complete::add_complete_commands;
+
+        app = add_complete_commands(app);
+    }
 
     for (name, command) in &config.tasks {
         let mut sub = Command::new(name);
@@ -49,16 +48,6 @@ fn build_cli_commands(config: &Config) -> Command {
     }
 
     app
-}
-
-/// Generate shell completions
-fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
-    generate(
-        generator,
-        cmd,
-        cmd.get_name().to_string(),
-        &mut io::stdout(),
-    );
 }
 
 /// Execute the CLI command
@@ -80,14 +69,10 @@ pub fn cli() -> Result<(), CommandError> {
 
     match matches.subcommand() {
         None => unreachable!(),
-        Some(("auto_complete", args)) => {
-            #[expect(clippy::missing_panics_doc, reason = "infallible")]
-            let shell = args.get_one::<Shell>("shell").unwrap();
-
-            let mut cmd = build_cli_commands(config);
-            print_completions(*shell, &mut cmd);
-            Ok(())
-        }
+        #[cfg(feature = "complete")]
+        Some(("setup_complete", args)) => handle_setup_complete(args),
+        #[cfg(feature = "complete")]
+        Some(("auto_complete", args)) => handle_auto_complete(args),
         Some((name, _)) => execute(name),
     }
 }
