@@ -1,3 +1,8 @@
+[run]
+script = "cargo run"
+desc = "Run with debug logging"
+options.environment.RUST_LOG = "mach=debug,info"
+
 [build]
 script = "cargo build"
 desc = "Build the project"

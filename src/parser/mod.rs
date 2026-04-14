@@ -53,6 +53,7 @@ pub struct TaskConfig {
 #[derive(Debug)]
 pub struct TaskOptions {
     pub working_directory: Option<PathBuf>,
+    pub environment: HashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -148,6 +149,7 @@ impl RawTaskConfig {
 #[derive(Debug, Deserialize)]
 struct RawTaskOptions {
     working_directory: Option<String>,
+    environment: Option<HashMap<String, String>>,
 }
 
 impl RawTaskOptions {
@@ -165,7 +167,12 @@ impl RawTaskOptions {
             None
         };
 
-        Ok(TaskOptions { working_directory })
+        let environment: HashMap<String, String> = self.environment.unwrap_or_default();
+
+        Ok(TaskOptions {
+            working_directory,
+            environment,
+        })
     }
 }
 

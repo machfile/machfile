@@ -1,0 +1,9 @@
+[task1]
+script = "ls"
+desc = "Run ls in src directory"
+options.working_directory = "src"
+
+[task2]
+script = "printenv TEST_VAR"
+desc = "Echo environment variable"
+options.environment.TEST_VAR = "TEST WORKS"
