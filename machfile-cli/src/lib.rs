@@ -26,6 +26,31 @@
 //! script = "cargo install --path ."
 //! deps = ["clean"]
 //! ```
+//! The same configuration can be written in `yaml` as follows:
+//!
+//! ```yaml
+//! run:
+//!   script: "cargo run"
+//!   desc: "Run with debug logging"
+//!   options:
+//!     environment:
+//!       RUST_LOG: "mach=debug,info"
+//!
+//! clean:
+//!   script: "rm -rf target"
+//!   desc: "Remove cache and outputs"
+//!
+//! check_target_size:
+//!   script: "du -d1 -h"
+//!   desc: "Check directory sizes of cache dirs"
+//!   options:
+//!     working_directory: "target"
+//!
+//! install:
+//!   script: "cargo install --path ."
+//!   deps:
+//!     - "clean"
+//! ```
 //!
 //! ## Usage
 //!
