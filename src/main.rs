@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use mach::cli;
+use machfile::cli;
 
 fn main() -> ExitCode {
     env_logger::init();
