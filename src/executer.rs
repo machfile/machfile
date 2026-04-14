@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, io};
+use std::{error::Error, ffi::OsStr, fmt, io, process::Command};
 
 use crossterm::{
     execute,
@@ -77,26 +77,18 @@ pub fn execute(command_name: &str) -> Result<(), CommandError> {
                 io::stdout(),
                 SetForegroundColor(Color::Grey),
                 SetAttribute(Attribute::Dim),
-                Print(format!("  {sys_command:?}")),
+                Print("  "),
+                Print(format_command(&sys_command)),
                 SetAttribute(Attribute::Reset),
                 SetForegroundColor(Color::Blue),
                 Print("\n"),
                 ResetColor,
             );
 
-            let mut command_path = config.path.clone();
-
-            // If a working directory is set for the task, set it
-            if let Some(opts) = &task.options {
-                if let Some(work_dir) = &opts.working_directory {
-                    command_path.push(work_dir);
-                }
-                for (key, value) in &opts.environment {
-                    sys_command.env(key, value);
-                }
+            for (key, value) in &task.options.environment {
+                sys_command.env(key, value);
             }
-
-            sys_command.current_dir(command_path);
+            sys_command.current_dir(&task.options.working_directory);
 
             let proc = sys_command.spawn();
 
@@ -119,4 +111,55 @@ pub fn execute(command_name: &str) -> Result<(), CommandError> {
     }
 
     Ok(())
+}
+
+fn format_command(cmd: &Command) -> String {
+    format!(
+        "{} {}",
+        cmd.get_program().display(),
+        cmd.get_args()
+            .collect::<Vec<&OsStr>>()
+            .join(OsStr::new(" "))
+            .into_string()
+            .unwrap()
+    )
+    .trim()
+    .to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_command_formats_cmd_without_args_correctly() {
+        let cmd = Command::new("asdf");
+
+        assert_eq!(format_command(&cmd), String::from("asdf"));
+    }
+
+    #[test]
+    fn format_command_formats_cmd_with_string_arg_correctly() {
+        let mut cmd = Command::new("asdf");
+        cmd.arg("exe");
+
+        assert_eq!(format_command(&cmd), String::from("asdf exe"));
+    }
+
+    #[test]
+    fn format_command_formats_cmd_with_number_arg_correctly() {
+        let mut cmd = Command::new("asdf");
+        cmd.arg("2");
+
+        assert_eq!(format_command(&cmd), String::from("asdf 2"));
+    }
+
+    #[test]
+    fn format_command_formats_cmd_with_args_correctly() {
+        let mut cmd = Command::new("asdf");
+        cmd.arg("2");
+        cmd.arg("exe");
+
+        assert_eq!(format_command(&cmd), String::from("asdf 2 exe"));
+    }
 }
