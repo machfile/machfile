@@ -124,19 +124,18 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
 
     let chain = config.get_execution_chain(task_name);
 
-    let _ = execute!(
-        io::stdout(),
-        SetForegroundColor(Color::Blue),
-        Print("Running task \""),
-        SetAttribute(Attribute::Bold),
-        Print(task_name),
-        SetAttribute(Attribute::Reset),
-        SetForegroundColor(Color::Blue),
-        Print("\"\n"),
-        ResetColor,
-    );
-
     for task in chain {
+        let _ = execute!(
+            io::stdout(),
+            SetForegroundColor(Color::Blue),
+            Print("Running task \""),
+            SetAttribute(Attribute::Bold),
+            Print(&task.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print("\"\n"),
+            ResetColor,
+        );
         task.execute()?;
     }
     Ok(())

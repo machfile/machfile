@@ -30,6 +30,7 @@ impl RawTaskConfig {
         let options = self.options.unwrap_or_default().parse(path)?;
 
         let mut task = Task {
+            name: name.to_string(),
             desc: self.desc,
             deps: self.deps.unwrap_or_default(),
             options,

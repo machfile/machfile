@@ -87,6 +87,8 @@ impl<'a> Config<'a> {
 /// Composed of the `TaskOptions` and optionally a description, script and task dependencies
 #[derive(Debug, Clone, Default)]
 pub struct Task {
+    /// The name of the task
+    pub name: String,
     pub options: TaskOptions,
     /// Vector of `ScriptCommand` that are run in order when the task is executed
     pub script: Option<Vec<ScriptCommand>>,
