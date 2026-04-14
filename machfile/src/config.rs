@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -12,19 +11,17 @@ use crate::{
 
 /// The main struct holding all [tasks](`Task`)
 #[derive(Debug, Clone)]
-pub struct Config<'a> {
+pub struct Config {
     pub path: PathBuf,
     pub tasks: HashMap<String, Task>,
-    phantom: PhantomData<&'a str>,
 }
 
-impl<'a> Config<'a> {
+impl Config {
     pub fn from_raw(raw: RawConfig, config_path: &Path) -> Result<Self, ConfigParseError> {
         let path = config_path.parent().unwrap().to_path_buf();
         let mut config = Self {
             path: path.clone(),
             tasks: HashMap::new(),
-            phantom: PhantomData,
         };
 
         for (name, raw_task) in &raw.tasks {
@@ -39,13 +36,13 @@ impl<'a> Config<'a> {
         }
     }
 
-    pub fn get_execution_chain(&'a self, task_name: &str) -> Vec<&'a Task> {
+    pub fn get_execution_chain(&self, task_name: &str) -> Vec<&Task> {
         let mut chain = Vec::new();
         self.collect_deps(task_name, &mut chain);
         chain
     }
 
-    fn collect_deps(&'a self, task_name: &str, chain: &mut Vec<&'a Task>) {
+    fn collect_deps<'a>(&'a self, task_name: &str, chain: &mut Vec<&'a Task>) {
         if let Some(task) = self.tasks.get(task_name) {
             for dep in &task.deps {
                 self.collect_deps(dep, chain);
