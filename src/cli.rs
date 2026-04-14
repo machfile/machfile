@@ -29,7 +29,7 @@ fn build_cli_commands(config: &Config) -> Command {
         .arg_required_else_help(true)
         .styles(build_clap_styles());
 
-    for (name, command) in &config.commands {
+    for (name, command) in &config.tasks {
         let mut sub = Command::new(name);
         if let Some(desc) = &command.desc {
             sub = sub.about(desc);
@@ -61,7 +61,7 @@ pub fn cli() -> Result<(), CommandError> {
                 clippy::missing_panics_doc,
                 reason = "clap makes this impossible to panic"
             )]
-            let command_config = config.commands.get(name).unwrap();
+            let command_config = config.tasks.get(name).unwrap();
             execute(name, command_config);
             Ok(())
         }

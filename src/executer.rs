@@ -1,15 +1,19 @@
-use std::{collections::VecDeque, io, process::Command};
+use std::{
+    io,
+    process::{Command, Stdio},
+};
 
 use crossterm::{
     execute,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
+use log::error;
 
-use crate::parser::CommandConfig;
+use crate::parser::TaskConfig;
 
 /// Execute defined commands
-pub fn execute(command_name: &str, config: &CommandConfig) {
-    let Some(command_string) = &config.command else {
+pub fn execute(command_name: &str, task: &TaskConfig) {
+    if task.script.is_none() {
         let _ = execute!(
             io::stdout(),
             SetForegroundColor(Color::Red),
@@ -17,13 +21,13 @@ pub fn execute(command_name: &str, config: &CommandConfig) {
             Print("[Error]"),
             SetAttribute(Attribute::Reset),
             SetForegroundColor(Color::Red),
-            Print(" Task without command are not supported yet\n"),
+            Print(" Tasks without script are not supported yet\n"),
             ResetColor,
         );
         unimplemented!();
-    };
+    }
 
-    if let Some(deps) = &config.deps {
+    if let Some(deps) = &task.deps {
         let _ = execute!(
             io::stdout(),
             SetForegroundColor(Color::Yellow),
@@ -49,12 +53,26 @@ pub fn execute(command_name: &str, config: &CommandConfig) {
         ResetColor,
     );
 
-    let mut command_parts: VecDeque<&str> =
-        VecDeque::from(command_string.split_whitespace().collect::<Vec<&str>>());
-    let output = Command::new(command_parts.pop_front().unwrap())
-        .args(command_parts)
-        .stdout(io::stdout())
-        .output();
+    if let Some(script) = &task.script {
+        for command in script {
+            let mut proc = Command::new(command.command.clone())
+                .args(command.args.clone())
+                .stdout(io::stdout())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap();
 
-    println!("\n===============\nCommand output:\n{output:#?}");
+            if let Ok(code) = proc.wait() {
+                if code.success() {
+                    continue;
+                }
+
+                error!("Command failed with status {code}");
+                return;
+            }
+
+            error!("Command failed to spawn");
+            return;
+        }
+    }
 }

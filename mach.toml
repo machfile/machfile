@@ -1,12 +1,12 @@
 [build]
-command = "cargo build"
+script = "cargo build"
 desc = "build the project"
 
 [release]
-command = "cargo build --release"
+script  = "cargo build --release"
 
 [clean]
-command = "rm -rf target"
+script = "rm -rf target"
 desc = "remove cache and outputs"
 
 [meta]
@@ -14,6 +14,13 @@ desc = "meta task"
 deps = ["clean", "build"]
 
 [deps]
-command = "echo asdf"
+script = "echo asdf"
 desc = "task with deps"
 deps = ["clean", "build"]
+
+[multi_test]
+script = """echo line1
+    echo line2
+    echo line3
+    """
+desc = "Test multiline script"
