@@ -1,6 +1,7 @@
-use std::env;
+use std::{env, io};
 
-use clap::{Command, builder::styling, crate_authors, crate_version};
+use clap::{ArgAction, Command, arg, builder::styling, crate_authors, crate_version, value_parser};
+use clap_complete::{Generator, Shell, generate};
 
 use crate::{
     executer::{CommandError, execute},
@@ -26,7 +27,17 @@ fn build_cli_commands(config: &Config) -> Command {
         .version(crate_version!())
         .about("Run stuff, get shit done")
         .arg_required_else_help(true)
-        .styles(build_clap_styles());
+        .styles(build_clap_styles())
+        .subcommand(
+            Command::new("auto_complete")
+                .arg(
+                    arg!([shell])
+                        .action(ArgAction::Set)
+                        .required(true)
+                        .value_parser(value_parser!(Shell)),
+                )
+                .hide(true),
+        );
 
     for (name, command) in &config.tasks {
         let mut sub = Command::new(name);
@@ -38,6 +49,16 @@ fn build_cli_commands(config: &Config) -> Command {
     }
 
     app
+}
+
+/// Generate shell completions
+fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
+    generate(
+        generator,
+        cmd,
+        cmd.get_name().to_string(),
+        &mut io::stdout(),
+    );
 }
 
 /// Execute the CLI command
@@ -59,6 +80,14 @@ pub fn cli() -> Result<(), CommandError> {
 
     match matches.subcommand() {
         None => unreachable!(),
+        Some(("auto_complete", args)) => {
+            #[expect(clippy::missing_panics_doc, reason = "infallible")]
+            let shell = args.get_one::<Shell>("shell").unwrap();
+
+            let mut cmd = build_cli_commands(config);
+            print_completions(*shell, &mut cmd);
+            Ok(())
+        }
         Some((name, _)) => execute(name),
     }
 }

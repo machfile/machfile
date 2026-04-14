@@ -10,7 +10,35 @@ cd mach
 cargo install --path .
 ```
 
+### Auto-complete setup
+
+Mach supports dynamic auto completion
+
+#### ZSH
+
+Add the following to your `.zshrc`
+
+```shell
+# Load mach autocompletion
+_update_completion() {
+    local auto_complete_output
+    auto_complete_output=$(mach auto_complete zsh 2>&1)
+
+    if [[ $? -ne 0 ]]; then
+        compdef -d mach
+        return
+    fi
+
+    eval "$auto_complete_output"
+}
+chpwd() {
+    _update_completion
+}
+```
+
 ## Usage
+
+Consult the `--help` command for usage instructions
 
 ```shell
 mach --help
