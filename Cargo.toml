@@ -1,8 +1,11 @@
 [package]
 name = "mach"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
-authors = ["Simon Barth <sb@b1t.at>"] 
+description = "A simple task system, for when a build system is to much"
+repository = "https://github.com/machfile/mach"
+license = "MIT"
+categories = ["command-line-utilities"]
 
 [lints.clippy]
 pedantic = "warn"

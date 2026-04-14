@@ -1,7 +1,4 @@
-use std::{
-    io,
-    process::{Command, Stdio},
-};
+use std::io;
 
 use crossterm::{
     execute,
@@ -55,14 +52,12 @@ pub fn execute(command_name: &str, task: &TaskConfig) {
 
     if let Some(script) = &task.script {
         for command in script {
-            let mut proc = Command::new(command.command.clone())
-                .args(command.args.clone())
-                .stdout(io::stdout())
-                .stderr(Stdio::inherit())
-                .spawn()
-                .unwrap();
+            let mut sys_command = command.create_sys_command();
+            let proc = sys_command.spawn();
 
-            if let Ok(code) = proc.wait() {
+            if let Ok(mut proc) = proc
+                && let Ok(code) = proc.wait()
+            {
                 if code.success() {
                     continue;
                 }

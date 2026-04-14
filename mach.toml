@@ -24,3 +24,7 @@ script = """echo line1
     echo line3
     """
 desc = "Test multiline script"
+
+[invalid_bin]
+script = "asdfeeee"
+desc = "This should fail"

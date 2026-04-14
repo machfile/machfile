@@ -3,6 +3,7 @@ use std::{
     ffi::OsString,
     fs::read_to_string,
     path::PathBuf,
+    process::Command,
     str::FromStr,
 };
 
@@ -20,19 +21,6 @@ pub enum ConfigParseError {
 #[derive(Debug)]
 pub struct Config {
     pub tasks: HashMap<String, TaskConfig>,
-}
-
-#[derive(Debug)]
-pub struct TaskConfig {
-    pub script: Option<Vec<ScriptCommand>>,
-    pub desc: Option<String>,
-    pub deps: Option<Vec<String>>,
-}
-
-#[derive(Debug)]
-pub struct ScriptCommand {
-    pub command: String,
-    pub args: Vec<String>,
 }
 
 impl Config {
@@ -92,6 +80,27 @@ impl Config {
         }
 
         Ok(config)
+    }
+}
+
+#[derive(Debug)]
+pub struct TaskConfig {
+    pub script: Option<Vec<ScriptCommand>>,
+    pub desc: Option<String>,
+    pub deps: Option<Vec<String>>,
+}
+
+#[derive(Debug)]
+pub struct ScriptCommand {
+    pub command: String,
+    pub args: Vec<String>,
+}
+
+impl ScriptCommand {
+    pub fn create_sys_command(&self) -> Command {
+        let mut command = Command::new(self.command.clone());
+        command.args(self.args.clone());
+        command
     }
 }
 
