@@ -15,9 +15,7 @@ provides the basic functionality of the task runner. The binary is called `mach`
 ## Installation
 
 ```shell
-git clone https://github.com/machfile/mach.git
-cd mach
-cargo install --path .
+cargo add machfile
 ```
 
 ### Auto-complete setup

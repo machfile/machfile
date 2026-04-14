@@ -1,3 +1,9 @@
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/machfile/machfile/rust.yml?style=flat-square)
+![Crates.io library version](https://img.shields.io/crates/v/machfile?style=flat-square&label=library%20version)
+![Crates.io CLI version](https://img.shields.io/crates/v/machfile-cli?style=flat-square&label=CLI%20version)
+![Crates.io License](https://img.shields.io/crates/l/machfile-cli?style=flat-square)
+
+
 # Machfile
 
 > Simple task runner, for when a full build system is overkill
@@ -8,8 +14,16 @@ provides the basic functionality of the task runner. The binary is called `mach`
 
 ## Installation
 
+You can install the binary with `cargo`:
+
 ```shell
-git clone https://github.com/machfile/mach.git
+cargo install machfile-cli --locked
+```
+
+Or clone the repository and install manually:
+
+```shell
+git clone https://github.com/machfile/machfile.git
 cd mach
 cargo install --path .
 ```
