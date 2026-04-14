@@ -1,0 +1,21 @@
+[package]
+name = "machfile-cli"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["complete"]
+complete = ["dep:clap_complete"]
+
+
+[dependencies]
+clap = { version = "4.5.57", features = ["cargo", "string"] }
+clap_complete = { version = "4.5.66", optional = true }
+crossterm = "0.29.0"
+env_logger = "0.11.9"
+log = "0.4.29"
+machfile = { version = "0.1.0-alpha.1", path = "../machfile" }
+
+[[bin]]
+name = "mach"
+path = "src/main.rs"

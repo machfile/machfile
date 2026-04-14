@@ -1,15 +1,16 @@
-use std::env;
+use std::{env, io};
 
 use clap::{Command, builder::styling, crate_authors, crate_version};
+use crossterm::{
+    execute,
+    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
+};
 use log::warn;
+
+use machfile::{config::Config, load_config, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
-
-use crate::{
-    executer::{CommandError, execute},
-    parser::{Config, get_config, load_config},
-};
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -24,7 +25,7 @@ fn build_clap_styles() -> styling::Styles {
 ///
 /// This constructs dynamic commands based on the found configuration. See [`parse_config`] for how
 /// configuration is loaded.
-pub fn build_cli_commands(config: Option<&Config>) -> Command {
+pub fn build_cli_commands(config: &Option<Config>) -> Command {
     let mut app = Command::new("mach")
         .author(crate_authors!("\n"))
         .version(crate_version!())
@@ -66,12 +67,15 @@ pub fn build_cli_commands(config: Option<&Config>) -> Command {
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
 
-    if load_config(config_override).is_err() {
-        warn!("Failed to parse configuration");
-    }
+    let config = match load_config(config_override) {
+        Err(_) => {
+            warn!("Failed to parse configuration");
+            None
+        }
+        Ok(conf) => Some(conf),
+    };
 
-    let config = get_config();
-    let matches = build_cli_commands(config).get_matches();
+    let matches = build_cli_commands(&config).get_matches();
 
     match matches.subcommand() {
         None => unreachable!(),
@@ -84,11 +88,49 @@ pub fn cli() -> Result<(), CommandError> {
                     message: "Failed to parse configuration".to_owned(),
                 });
             }
+
+            let conf = config.unwrap();
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => execute(name),
+                (name, _) => run_task(&conf, &name),
             }
         }
     }
+}
+
+fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
+    let task = config.tasks.get(task_name).unwrap();
+    if task.script.is_none() && task.deps.is_empty() {
+        let _ = execute!(
+            io::stdout(),
+            SetForegroundColor(Color::Red),
+            SetAttribute(Attribute::Bold),
+            Print("[Error]"),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Red),
+            Print(" Tasks require either a script or dependencies\n"),
+            ResetColor,
+        );
+        unimplemented!();
+    }
+
+    let chain = config.get_execution_chain(task_name);
+
+    let _ = execute!(
+        io::stdout(),
+        SetForegroundColor(Color::Blue),
+        Print("Running task \""),
+        SetAttribute(Attribute::Bold),
+        Print(task_name),
+        SetAttribute(Attribute::Reset),
+        SetForegroundColor(Color::Blue),
+        Print("\"\n"),
+        ResetColor,
+    );
+
+    for task in chain {
+        task.execute()?;
+    }
+    Ok(())
 }

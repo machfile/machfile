@@ -1,8 +1,11 @@
 use clap::{ArgAction, ArgMatches, Command, arg, value_parser};
 use clap_complete::{Generator, Shell, generate};
+use log::warn;
 use std::io;
 
-use crate::{cli::build_cli_commands, executer::CommandError, parser::get_config};
+use machfile::{load_config, utils::CommandError};
+
+use crate::cli::build_cli_commands;
 
 pub fn add_complete_commands(cmd: Command) -> Command {
     cmd.subcommand(
@@ -97,9 +100,15 @@ pub fn handle_auto_complete(args: &ArgMatches) -> Result<(), CommandError> {
         });
     }
 
-    let config = get_config();
+    let config = match load_config(None) {
+        Ok(conf) => Some(conf),
+        Err(_) => {
+            warn!("Failed to parse config during auto complete call");
+            None
+        }
+    };
 
-    let mut cmd = build_cli_commands(config);
+    let mut cmd = build_cli_commands(&config);
     print_completions(*shell, &mut cmd);
     Ok(())
 }

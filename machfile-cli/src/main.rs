@@ -1,7 +1,8 @@
 use std::process::ExitCode;
 
 use log::debug;
-use machfile::cli;
+
+use machfile_cli::cli;
 
 fn main() -> ExitCode {
     env_logger::init();

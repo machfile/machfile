@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::parser::ConfigParseError;
+use crate::utils::ConfigParseError;
 
 pub fn get_mach_file_path(directory: &Path) -> Result<PathBuf, ConfigParseError> {
     let mut ancestors = directory.ancestors();

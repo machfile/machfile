@@ -56,8 +56,6 @@
 //! feature. This feature is part of the default features.</div>
 
 mod cli;
-pub mod executer;
-pub mod parser;
 
 #[cfg(feature = "complete")]
 mod complete;

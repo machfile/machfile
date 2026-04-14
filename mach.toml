@@ -26,9 +26,10 @@ options.working_directory = "target"
 [install]
 script = "cargo install --path ."
 desc = "Install the current version"
+options.working_directory = "machfile-cli"
 
 [clean_install]
 script = "cargo install --path ."
 desc = "Clean dependencies and artifacts, then install the current version"
-deps = ["clean"]
+deps = ["clean", "install"]
 
