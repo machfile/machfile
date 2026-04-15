@@ -4,17 +4,9 @@ on:
   push:
     branches:
       - "master"
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "Cargo.lock"
   pull_request:
     branches:
       - "master"
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "Cargo.lock"
   workflow_dispatch:
 
 env:
@@ -26,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Build
         run: cargo build --verbose
 
@@ -35,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Run clippy
         run: cargo clippy
 
@@ -44,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Run tests
         run: cargo test
 
@@ -53,6 +45,6 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Check formatting
         run: cargo fmt --check
