@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+/// This enum is used to identify errors that ocurre during config parsing
 #[derive(Debug, PartialEq)]
 pub enum ConfigParseError {
     NoConfigFile,
@@ -12,6 +13,7 @@ pub enum ConfigParseError {
     CircularDependencies,
 }
 
+/// This struct is used for errors during command execution
 #[derive(Debug)]
 pub struct CommandError {
     pub message: String,

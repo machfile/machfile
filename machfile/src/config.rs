@@ -17,6 +17,11 @@ pub struct Config {
 }
 
 impl Config {
+    /// Parse a [`RawConfig`] into a `Config`
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigParseError`] when there is an issue with any part of the configuration
     pub fn from_raw(raw: RawConfig, config_path: &Path) -> Result<Self, ConfigParseError> {
         let path = config_path.parent().unwrap().to_path_buf();
         let mut config = Self {
@@ -36,6 +41,7 @@ impl Config {
         }
     }
 
+    /// Returns a vector of task names which should be executed in order for the given `task_name`
     pub fn get_execution_chain(&self, task_name: &str) -> Vec<&Task> {
         let mut chain = Vec::new();
         self.collect_deps(task_name, &mut chain);

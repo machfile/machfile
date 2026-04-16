@@ -114,6 +114,8 @@ impl RawTaskOptions {
 mod tests {
     use std::env::current_dir;
 
+    use crate::Config;
+
     use super::*;
 
     #[test]
@@ -333,5 +335,95 @@ mod tests {
         assert_eq!(script[1].command, "more".to_string());
         assert_eq!(script[1].args.len(), 1);
         assert_eq!(script[1].args[0], "--time".to_string());
+    }
+
+    #[test]
+    fn minimal_configuration_parses_correctly() {
+        let mut tasks = HashMap::new();
+        tasks.insert("task0".to_string(), RawTaskConfig {
+            script: Some("hello world".to_string()),
+            desc: Some("test description".to_string()),
+            deps: None,
+            options: None,
+        });
+        tasks.insert("task1".to_string(), RawTaskConfig {
+            script: Some("touch test1 asdf".to_string()),
+            desc: Some("test description".to_string()),
+            deps: None,
+            options: None,
+        });
+
+        let raw = RawConfig {
+            tasks,
+        };
+
+        let result = Config::from_raw(raw, &Path::new("/tmp"));
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(config.tasks.keys().len(), 2);
+        assert!(config.tasks.contains_key("task0"));
+        assert!(config.tasks.contains_key("task1"));
+        assert!(config.tasks.get("task0").unwrap().script.is_some());
+        assert_eq!(config.tasks.get("task0").unwrap().script.clone().unwrap()[0].command, "hello".to_string());
+        assert!(config.tasks.get("task1").unwrap().script.is_some());
+        assert_eq!(config.tasks.get("task1").unwrap().script.clone().unwrap()[0].command, "touch".to_string());
+    } 
+
+    #[test]
+    fn simple_circular_dependencies_lead_to_parse_error() {
+        let mut tasks = HashMap::new();
+        tasks.insert("task0".to_string(), RawTaskConfig {
+            script: Some("hello world".to_string()),
+            desc: Some("test description".to_string()),
+            deps: Some(vec!["task1".to_string()]),
+            options: None,
+        });
+        tasks.insert("task1".to_string(), RawTaskConfig {
+            script: Some("touch test1 asdf".to_string()),
+            desc: Some("test description".to_string()),
+            deps: Some(vec!["task0".to_string()]),
+            options: None,
+        });
+
+        let raw = RawConfig {
+            tasks,
+        };
+
+        let result = Config::from_raw(raw, &Path::new("/tmp"));
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error, ConfigParseError::CircularDependencies);
+    }
+
+    #[test]
+    fn complex_circular_dependencies_lead_to_parse_error() {
+        let mut tasks = HashMap::new();
+        tasks.insert("task0".to_string(), RawTaskConfig {
+            script: Some("hello world".to_string()),
+            desc: Some("test description".to_string()),
+            deps: Some(vec!["task1".to_string()]),
+            options: None,
+        });
+        tasks.insert("task1".to_string(), RawTaskConfig {
+            script: Some("touch test1 asdf".to_string()),
+            desc: Some("test description".to_string()),
+            deps: Some(vec!["task2".to_string()]),
+            options: None,
+        });
+        tasks.insert("task2".to_string(), RawTaskConfig {
+            script: Some("touch test1 asdf".to_string()),
+            desc: Some("test description".to_string()),
+            deps: Some(vec!["task0".to_string()]),
+            options: None,
+        });
+
+        let raw = RawConfig {
+            tasks,
+        };
+
+        let result = Config::from_raw(raw, &Path::new("/tmp"));
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error, ConfigParseError::CircularDependencies);
     }
 }
