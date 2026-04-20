@@ -6,6 +6,8 @@ use std::{
 use log::error;
 use serde::Deserialize;
 
+use crate::utils::split_command_string;
+
 use super::{
     ConfigParseError,
     config::{ScriptCommand, Task, TaskOptions},
@@ -60,10 +62,7 @@ impl RawTaskConfig {
             }
 
             for command in lines {
-                let mut parts = command
-                    .split_whitespace()
-                    .map(str::trim)
-                    .collect::<VecDeque<_>>();
+                let mut parts = VecDeque::from(split_command_string(&command));
 
                 if parts.is_empty() {
                     // empty line gets skipped
@@ -72,7 +71,7 @@ impl RawTaskConfig {
 
                 task_commands.push(ScriptCommand {
                     command: parts.pop_front().unwrap().to_string(),
-                    args: parts.iter().map(|&s| s.to_string()).collect(),
+                    args: parts.into(),
                 });
             }
 
@@ -335,6 +334,46 @@ mod tests {
         assert_eq!(script[1].command, "more".to_string());
         assert_eq!(script[1].args.len(), 1);
         assert_eq!(script[1].args[0], "--time".to_string());
+    }
+
+    #[test]
+    fn single_quoted_arguments_are_treated_as_one_argument() {
+        let raw_task = RawTaskConfig {
+            script: Some("touch 'arg arg'".to_string()),
+            desc: None,
+            deps: None,
+            options: None,
+        };
+        let result = raw_task.parse("name", Path::new("/tmp"));
+
+        assert!(result.is_ok());
+        let task = result.unwrap();
+        assert!(task.script.is_some());
+        let script = task.script.unwrap();
+        // First command
+        assert_eq!(script[0].command, "touch".to_string());
+        assert_eq!(script[0].args.len(), 1);
+        assert_eq!(script[0].args[0], "arg arg".to_string());
+    }
+
+    #[test]
+    fn double_quoted_arguments_are_treated_as_one_argument() {
+        let raw_task = RawTaskConfig {
+            script: Some("touch \"arg arg\"".to_string()),
+            desc: None,
+            deps: None,
+            options: None,
+        };
+        let result = raw_task.parse("name", Path::new("/tmp"));
+
+        assert!(result.is_ok());
+        let task = result.unwrap();
+        assert!(task.script.is_some());
+        let script = task.script.unwrap();
+        // First command
+        assert_eq!(script[0].command, "touch".to_string());
+        assert_eq!(script[0].args.len(), 1);
+        assert_eq!(script[0].args[0], "arg arg".to_string());
     }
 
     #[test]
