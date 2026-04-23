@@ -72,6 +72,17 @@ pub fn cli() -> Result<(), CommandError> {
             match error {
                 machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
                     warn!("{message}");
+                    let _ = execute!(
+                        io::stdout(),
+                        SetForegroundColor(Color::Red),
+                        SetAttribute(Attribute::Bold),
+                        Print("[Error]"),
+                        SetAttribute(Attribute::Reset),
+                        SetForegroundColor(Color::Red),
+                        Print(" Failed to parse the configuration:\n"),
+                        Print(message),
+                        ResetColor,
+                    );
                 }
                 _ => {
                     warn!("Failed to load/parse configuration: {error:?}");
