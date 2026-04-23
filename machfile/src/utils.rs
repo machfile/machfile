@@ -35,21 +35,9 @@ pub fn split_command_string(cmd_string: &str) -> Vec<String> {
     let mut arguments = vec![];
 
     let mut current_str = String::new();
-    let mut is_escaping = false;
     let mut is_double_quoted = false;
     let mut is_single_quoted = false;
     for c in cmd_string.chars() {
-        if is_escaping {
-            current_str.push(c);
-            is_escaping = false;
-            continue;
-        }
-
-        if c == '\\' && !is_single_quoted {
-            is_escaping = true;
-            continue;
-        }
-
         if c == '"' {
             is_double_quoted = !is_double_quoted;
             continue;
@@ -141,17 +129,6 @@ mod tests {
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "asdf".to_string());
         assert_eq!(result[1], "ab   bc".to_string());
-        assert_eq!(result[2], "ccc".to_string());
-    }
-
-    #[test]
-    fn split_command_string_treats_backslash_as_escape_sequence_in_double_quoted_arguments() {
-        let input = "asdf \"ab \\bc\" ccc";
-        let result = split_command_string(input);
-
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], "asdf".to_string());
-        assert_eq!(result[1], "ab bc".to_string());
         assert_eq!(result[2], "ccc".to_string());
     }
 
