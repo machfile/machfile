@@ -38,11 +38,11 @@ pub fn split_command_string(cmd_string: &str) -> Vec<String> {
     let mut is_double_quoted = false;
     let mut is_single_quoted = false;
     for c in cmd_string.chars() {
-        if c == '"' {
+        if c == '"' && !is_single_quoted {
             is_double_quoted = !is_double_quoted;
             continue;
         }
-        if c == '\'' {
+        if c == '\'' && !is_double_quoted {
             is_single_quoted = !is_single_quoted;
             continue;
         }
@@ -162,6 +162,28 @@ mod tests {
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "asdf".to_string());
         assert_eq!(result[1], "ab \\bc".to_string());
+        assert_eq!(result[2], "ccc".to_string());
+    }
+
+    #[test]
+    fn split_command_string_allows_single_quotes_inside_double_qoutes() {
+        let input = "asdf \"a' 'b\" ccc";
+        let result = split_command_string(input);
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "asdf".to_string());
+        assert_eq!(result[1], "a' 'b".to_string());
+        assert_eq!(result[2], "ccc".to_string());
+    }
+
+    #[test]
+    fn split_command_string_allows_double_quotes_inside_single_qoutes() {
+        let input = "asdf 'a\" \"b' ccc";
+        let result = split_command_string(input);
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "asdf".to_string());
+        assert_eq!(result[1], "a\" \"b".to_string());
         assert_eq!(result[2], "ccc".to_string());
     }
 }
