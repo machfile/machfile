@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use clap::{Command, builder::styling, crate_authors, crate_version};
+use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
     execute,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
@@ -11,6 +11,7 @@ use machfile::{config::Config, load_config, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
+use crate::utils::print_config;
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -49,6 +50,13 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 
             app = app.subcommand(sub);
         }
+
+        app = app.arg(
+            Arg::new("show_config")
+                .action(ArgAction::SetTrue)
+                .long("show-config")
+                .help("Show detected configuration"),
+        );
     }
 
     app
@@ -96,7 +104,13 @@ pub fn cli() -> Result<(), CommandError> {
     let matches = build_cli_commands(&config).get_matches();
 
     match matches.subcommand() {
-        None => unreachable!(),
+        None => {
+            if matches.get_flag("show_config") {
+                let conf = config.unwrap();
+                print_config(&conf);
+            }
+            Ok(())
+        }
         #[cfg(feature = "complete")]
         Some(("setup_complete", args)) => handle_setup_complete(args),
         Some((cmd, args)) => {
@@ -108,6 +122,10 @@ pub fn cli() -> Result<(), CommandError> {
             }
 
             let conf = config.unwrap();
+            if matches.get_flag("show_config") {
+                print_config(&conf);
+            }
+
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
