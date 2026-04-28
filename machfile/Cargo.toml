@@ -1,6 +1,6 @@
 [package]
 name = "machfile"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "A simple task system, for when a build system is to much"
 repository = "https://github.com/machfile/machfile"
@@ -10,5 +10,5 @@ categories = ["development-tools::build-utils"]
 [dependencies]
 log = "0.4.29"
 serde = { version = "1.0.228", features = ["derive"] }
-toml = "0.9.11"
-serde-saphyr = "0.0.21"
+toml = "1.1.2"
+serde-saphyr = "0.0.25"
