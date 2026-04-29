@@ -23,13 +23,34 @@ impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Command encountered an unexpected error: {}",
+            "command encountered an unexpected error: {}",
             self.message
         )
     }
 }
 
 impl Error for CommandError {}
+
+#[derive(Debug)]
+pub enum TaskNameError {
+    LeadingUnderscore,
+    LeadingHypen,
+    InvalidCharacter(char),
+    TooShort,
+}
+
+impl fmt::Display for TaskNameError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TaskNameError::LeadingUnderscore => write!(f, "leading underscore is not allowed"),
+            TaskNameError::LeadingHypen => write!(f, "leading hypen is not allowed"),
+            TaskNameError::InvalidCharacter(i) => write!(f, "invalid character: '{i}''"),
+            TaskNameError::TooShort => write!(f, "task name is to short"),
+        }
+    }
+}
+
+impl Error for TaskNameError {}
 
 pub fn split_command_string(cmd_string: &str) -> Vec<String> {
     let mut arguments = vec![];
@@ -62,6 +83,40 @@ pub fn split_command_string(cmd_string: &str) -> Vec<String> {
     }
 
     arguments
+}
+
+pub fn validate_task_name(name: &str) -> Result<(), TaskNameError> {
+    if name.len() < 2 {
+        return Err(TaskNameError::TooShort);
+    }
+
+    let invalid_characters = vec!['$', '\\', '{', '}', '\'', '"', '&'];
+
+    let mut chars = name.chars();
+    let mut char = chars.next().unwrap();
+    if char == '_' {
+        return Err(TaskNameError::LeadingUnderscore);
+    }
+    if char == '-' {
+        return Err(TaskNameError::LeadingHypen);
+    }
+
+    loop {
+        for c in &invalid_characters {
+            if char == *c {
+                return Err(TaskNameError::InvalidCharacter(char));
+            }
+        }
+
+        if let Some(next) = chars.next() {
+            char = next;
+            continue;
+        }
+
+        break;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -185,5 +240,109 @@ mod tests {
         assert_eq!(result[0], "asdf".to_string());
         assert_eq!(result[1], "a\" \"b".to_string());
         assert_eq!(result[2], "ccc".to_string());
+    }
+
+    #[test]
+    fn validate_task_name_rejects_empty_names() {
+        let result = validate_task_name("");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), TaskNameError::TooShort));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_leading_underscore() {
+        let result = validate_task_name("_test");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::LeadingUnderscore
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_leading_hypen() {
+        let result = validate_task_name("-test");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), TaskNameError::LeadingHypen));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_dollar_sign() {
+        let result = validate_task_name("test$ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('$')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_forbidden_characters_in_first_position() {
+        let result = validate_task_name("$ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('$')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_backslash() {
+        let result = validate_task_name("tes\\ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('\\')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_opening_brackets() {
+        let result = validate_task_name("ab{asa");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('{')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_closing_brackets() {
+        let result = validate_task_name("tes}ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('}')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_single_quote() {
+        let result = validate_task_name("test'ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('\'')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_double_quote() {
+        let result = validate_task_name("test\"ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('\"')
+        ));
+    }
+
+    #[test]
+    fn validate_task_name_rejects_ampersand() {
+        let result = validate_task_name("tes&ab");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            TaskNameError::InvalidCharacter('&')
+        ));
     }
 }
