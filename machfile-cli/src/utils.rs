@@ -59,10 +59,7 @@ pub fn print_config(config: &Config) {
                 }
             }
 
-            let _ = queue!(
-                stdout,
-                Print("\n"),
-                );
+            let _ = queue!(stdout, Print("\n"),);
         }
 
         if tasks.peek().is_some() {

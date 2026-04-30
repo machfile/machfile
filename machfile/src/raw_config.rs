@@ -57,12 +57,12 @@ impl RawTaskConfig {
             if lines.is_empty() {
                 error!("Task {name} has declared an empty script");
                 return Err(ConfigParseError::InvalidTaskDefinition(
-                    "Missing script".to_owned(),
+                    "missing script".to_owned(),
                 ));
             }
 
             for command in lines {
-                let mut parts = VecDeque::from(split_command_string(&command));
+                let mut parts = VecDeque::from(split_command_string(command));
 
                 if parts.is_empty() {
                     // empty line gets skipped
@@ -95,7 +95,7 @@ impl RawTaskOptions {
             working_directory.push(work_dir);
             if !working_directory.is_dir() {
                 return Err(ConfigParseError::InvalidTaskDefinition(
-                    "Invalid working_directory".into(),
+                    "invalid working_directory".into(),
                 ));
             }
         }
@@ -163,7 +163,7 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(
             error,
-            ConfigParseError::InvalidTaskDefinition("Invalid working_directory".to_string())
+            ConfigParseError::InvalidTaskDefinition("invalid working_directory".to_string())
         );
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let error = result.unwrap_err();
         assert_eq!(
             error,
-            ConfigParseError::InvalidTaskDefinition("Invalid working_directory".to_string())
+            ConfigParseError::InvalidTaskDefinition("invalid working_directory".to_string())
         );
     }
 

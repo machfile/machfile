@@ -122,12 +122,12 @@ impl Task {
                     }
 
                     return Err(CommandError {
-                        message: format!("Command failed with status {code}"),
+                        message: format!("command failed with status {code}"),
                     });
                 }
 
                 return Err(CommandError {
-                    message: "Command failed to spawn".to_owned(),
+                    message: "command failed to spawn".to_owned(),
                 });
             }
         }

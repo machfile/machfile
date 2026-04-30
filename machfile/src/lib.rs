@@ -103,7 +103,7 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
             Err(ConfigParseError::NoConfigFile)
         }
     } else {
-        get_mach_file_path(&env::current_dir().expect("Failed to get current working dir"))
+        get_mach_file_path(&env::current_dir().expect("failed to get current working dir"))
     }?;
 
     debug!("Found config file: {config_file:?}");
@@ -126,11 +126,11 @@ pub fn load_config(config_override: Option<OsString>) -> Result<Config, ConfigPa
 pub fn parse_config(config_str: &str, config_path: &Path) -> Result<Config, ConfigParseError> {
     let config = match config_path.extension().and_then(|ext| ext.to_str()) {
         Some("toml") => toml::from_str::<RawConfig>(config_str).map_err(|parse_error| {
-            ConfigParseError::InvalidTaskDefinition(format!("Invalid TOML: {parse_error}"))
+            ConfigParseError::InvalidTaskDefinition(format!("invalid TOML: {parse_error}"))
         }),
         Some("yaml") | Some("yml") => {
             serde_saphyr::from_str::<RawConfig>(config_str).map_err(|parse_error| {
-                ConfigParseError::InvalidTaskDefinition(format!("Invalid YAML: {parse_error}"))
+                ConfigParseError::InvalidTaskDefinition(format!("invalid YAML: {parse_error}"))
             })
         }
         _ => Err(ConfigParseError::UnsupportedConfigFileExtension),
