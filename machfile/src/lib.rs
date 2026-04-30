@@ -145,6 +145,8 @@ pub fn parse_config(config_str: &str, config_path: &Path) -> Result<Config, Conf
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::TaskNameError;
+
     use super::*;
 
     #[test]
@@ -276,5 +278,20 @@ mod tests {
         let task = task_opt.unwrap();
 
         assert_eq!(task.options.working_directory, PathBuf::from("/tmp"));
+    }
+
+    #[test]
+    fn parse_config_fails_with_invalid_task_name() {
+        let conf = "[_opt]\nscript = 'asdd'";
+
+        let result = parse_config(conf, &PathBuf::from("./mach.toml"));
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(matches!(error, ConfigParseError::InvalidTaskDefinition(_)));
+
+        let expected_error_message =
+            ConfigParseError::InvalidTaskDefinition(TaskNameError::LeadingUnderscore.to_string())
+                .to_string();
+        assert_eq!(error.to_string(), expected_error_message);
     }
 }

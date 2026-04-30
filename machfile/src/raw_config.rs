@@ -6,7 +6,7 @@ use std::{
 use log::error;
 use serde::Deserialize;
 
-use crate::utils::split_command_string;
+use crate::utils::{split_command_string, validate_task_name};
 
 use super::{
     ConfigParseError,
@@ -29,6 +29,11 @@ pub struct RawTaskConfig {
 
 impl RawTaskConfig {
     pub fn parse(self, name: &str, path: &Path) -> Result<Task, ConfigParseError> {
+        // make sure task name is valid
+        if let Err(e) = validate_task_name(name) {
+            return Err(ConfigParseError::InvalidTaskDefinition(e.to_string()));
+        }
+
         let options = self.options.unwrap_or_default().parse(path)?;
 
         let mut task = Task {

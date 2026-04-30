@@ -13,6 +13,35 @@ pub enum ConfigParseError {
     CircularDependencies,
 }
 
+impl fmt::Display for ConfigParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigParseError::NoConfigFile => write!(f, "no configuration file found"),
+            ConfigParseError::NoConfigFileInRepo => {
+                write!(f, "no configuration file found in git repository")
+            }
+            ConfigParseError::CorruptConfigFile => {
+                write!(f, "configuration file could not be parsed")
+            }
+            ConfigParseError::EmptyConfig => write!(f, "configuration file is empty"),
+            ConfigParseError::InvalidTaskDefinition(e) => {
+                write!(f, "task configuration is invalid: {e}")
+            }
+            ConfigParseError::MultipleConfigFiles => {
+                write!(f, "several configuration files were found")
+            }
+            ConfigParseError::UnsupportedConfigFileExtension => {
+                write!(f, "unsupported configuration file extension")
+            }
+            ConfigParseError::CircularDependencies => {
+                write!(f, "tasks present circular dependencies")
+            }
+        }
+    }
+}
+
+impl Error for ConfigParseError {}
+
 /// This struct is used for errors during command execution
 #[derive(Debug)]
 pub struct CommandError {
@@ -344,5 +373,13 @@ mod tests {
             result.unwrap_err(),
             TaskNameError::InvalidCharacter('&')
         ));
+    }
+
+    #[test]
+    fn validate_task_name_accepts_valid_names() {
+        let names = vec!["task1", "task", "options", "run", "build", "do"];
+        for name in &names {
+            assert!(validate_task_name(name).is_ok());
+        }
     }
 }
