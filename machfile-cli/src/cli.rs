@@ -11,7 +11,7 @@ use machfile::{config::Config, load_config, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
-use crate::utils::print_config;
+use crate::config_info::{print_config, print_task_config};
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -54,6 +54,7 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
         app = app.arg(
             Arg::new("show_config")
                 .action(ArgAction::SetTrue)
+                .global(true)
                 .long("show-config")
                 .help("Show detected configuration"),
         );
@@ -93,7 +94,7 @@ pub fn cli() -> Result<(), CommandError> {
                     );
                 }
                 _ => {
-                    warn!("Failed to load/parse configuration: {error:?}");
+                    warn!("Failed to load/parse configuration: {error}");
                 }
             }
             None
@@ -117,19 +118,23 @@ pub fn cli() -> Result<(), CommandError> {
             if config.is_none() {
                 println!("Failed to parse configuration");
                 return Err(CommandError {
-                    message: "Failed to parse configuration".to_owned(),
+                    message: "failed to parse configuration".to_owned(),
                 });
             }
 
             let conf = config.unwrap();
-            if matches.get_flag("show_config") {
-                print_config(&conf);
-            }
 
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => run_task(&conf, name),
+                (name, _) => {
+                    if matches.get_flag("show_config") {
+                        print_task_config(&conf, &cmd);
+                        Ok(())
+                    } else {
+                        run_task(&conf, name)
+                    }
+                }
             }
         }
     }

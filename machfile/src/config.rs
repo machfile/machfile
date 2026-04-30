@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -161,5 +162,11 @@ impl ScriptCommand {
         let mut command = Command::new(self.command.clone());
         command.args(self.args.clone());
         command
+    }
+}
+
+impl fmt::Display for ScriptCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.command, self.args.join(" "))
     }
 }

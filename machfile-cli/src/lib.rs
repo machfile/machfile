@@ -80,7 +80,7 @@
 //! feature. This feature is part of the default features.</div>
 
 mod cli;
-mod utils;
+mod config_info;
 
 #[cfg(feature = "complete")]
 mod complete;
