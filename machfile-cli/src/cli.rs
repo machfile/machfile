@@ -129,7 +129,7 @@ pub fn cli() -> Result<(), CommandError> {
                 ("auto_complete", args) => handle_auto_complete(args),
                 (name, _) => {
                     if matches.get_flag("show_config") {
-                        print_task_config(&conf, &cmd);
+                        print_task_config(&conf, cmd);
                         Ok(())
                     } else {
                         run_task(&conf, name)

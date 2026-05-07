@@ -1,10 +1,11 @@
-use std::io::{Write, stdout};
+use std::io::{Stdout, Write, stdout};
 
 use crossterm::{
     queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
-use machfile::Config;
+
+use machfile::{Config, config::TaskOptions};
 
 pub fn print_config(config: &Config) {
     let mut stdout = stdout();
@@ -82,7 +83,7 @@ pub fn print_task_config(config: &Config, task_name: &str) {
     if let Some(desc) = &task.desc {
         let _ = queue!(
             stdout,
-            Print("\n\t"),
+            Print('\n'),
             SetAttribute(Attribute::Italic),
             Print(desc),
             SetAttribute(Attribute::NoItalic),
@@ -96,28 +97,47 @@ pub fn print_task_config(config: &Config, task_name: &str) {
             Print('\n'),
             SetAttribute(Attribute::Bold),
             Print("Script"),
-            SetAttribute(Attribute::NoBold),
+            SetAttribute(Attribute::Reset),
             Print('\n'),
         );
         for line in script {
             let _ = queue!(stdout, Print('\t'), Print(line), Print('\n'),);
         }
+
+        let _ = queue!(stdout, Print('\n'));
     }
 
     if !task.deps.is_empty() {
-        let _ = queue!(
-            stdout,
-            Print('\n'),
-            SetAttribute(Attribute::Bold),
-            Print("Depends on:"),
-            SetAttribute(Attribute::NoBold),
-            Print('\n'),
-        );
-        for line in &task.deps {
-            let dep = config.tasks.get(line).unwrap();
-            let _ = queue!(stdout, Print("  - "), Print(line));
+        print_dependencies(&mut stdout, config, &task.deps);
+    }
 
-            if let Some(desc) = &dep.desc {
+    print_options(&mut stdout, &task.options);
+
+    let _ = stdout.flush();
+}
+
+fn print_dependencies(stdout: &mut Stdout, config: &Config, deps: &Vec<String>) {
+    let _ = queue!(
+        stdout,
+        Print('\n'),
+        SetAttribute(Attribute::Bold),
+        Print("Depends on:"),
+        SetAttribute(Attribute::Reset),
+        Print('\n'),
+    );
+
+    for line in deps {
+        let dep = config.tasks.get(line).unwrap();
+
+        for sub_line in &dep.deps {
+            let sub_dep = config.tasks.get(sub_line).unwrap();
+            let _ = queue!(
+                stdout,
+                SetForegroundColor(Color::Grey),
+                Print("  - "),
+                Print(sub_line),
+            );
+            if let Some(desc) = &sub_dep.desc {
                 let _ = queue!(
                     stdout,
                     Print('\t'),
@@ -127,9 +147,60 @@ pub fn print_task_config(config: &Config, task_name: &str) {
                 );
             }
 
-            let _ = queue!(stdout, Print('\n'));
+            let _ = queue!(stdout, SetAttribute(Attribute::Reset), Print('\n'));
+        }
+
+        let _ = queue!(stdout, Print("  - "), Print(line));
+
+        if let Some(desc) = &dep.desc {
+            let _ = queue!(
+                stdout,
+                Print('\t'),
+                SetAttribute(Attribute::Italic),
+                Print(desc),
+                SetAttribute(Attribute::NoItalic),
+            );
+        }
+
+        let _ = queue!(stdout, Print('\n'));
+    }
+
+    let _ = queue!(stdout, Print('\n'));
+}
+
+fn print_options(stdout: &mut Stdout, opts: &TaskOptions) {
+    let _ = queue!(
+        stdout,
+        Print("Working directory\n\t"),
+        SetAttribute(Attribute::Bold),
+        Print(opts.working_directory.display()),
+        SetAttribute(Attribute::Reset),
+        Print('\n'),
+    );
+
+    if !opts.environment.is_empty() {
+        let _ = queue!(
+            stdout,
+            Print('\n'),
+            SetAttribute(Attribute::Bold),
+            Print("Environment variables"),
+            SetAttribute(Attribute::Reset),
+            Print('\n'),
+        );
+
+        for (key, val) in opts.environment.clone().into_iter() {
+            let _ = queue!(
+                stdout,
+                Print('\t'),
+                SetAttribute(Attribute::Bold),
+                Print(key),
+                SetAttribute(Attribute::Reset),
+                Print('\t'),
+                Print(val),
+                Print('\n'),
+            );
         }
     }
 
-    let _ = stdout.flush();
+    let _ = queue!(stdout, Print('\n'));
 }
