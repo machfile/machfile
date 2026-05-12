@@ -1,11 +1,11 @@
-use std::{env, io};
-
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
-    execute,
+    execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
 use log::warn;
+use std::io::Write;
+use std::{env, io};
 
 use machfile::{config::Config, load_config, utils::CommandError};
 
@@ -59,6 +59,13 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
                 .help("Show detected configuration"),
         );
     }
+
+    app = app.arg(
+        Arg::new("dry_run")
+            .long("dry-run")
+            .action(ArgAction::SetTrue)
+            .help("Displays each script that would be executed without executing them"),
+    );
 
     app
 }
@@ -127,8 +134,11 @@ pub fn cli() -> Result<(), CommandError> {
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => {
-                    if matches.get_flag("show_config") {
+                (name, _args) => {
+                    if matches.get_flag("dry_run") {
+                        display_task(&conf, name)
+                    }
+                    else if matches.get_flag("show_config") {
                         print_task_config(&conf, cmd);
                         Ok(())
                     } else {
@@ -140,8 +150,16 @@ pub fn cli() -> Result<(), CommandError> {
     }
 }
 
-fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
-    let task = config.tasks.get(task_name).unwrap();
+fn get_and_validate_task<'a>(
+    config: &'a Config,
+    task_name: &str,
+) -> Result<&'a machfile::config::Task, CommandError> {
+    let Some(task) = config.tasks.get(task_name) else {
+        return Err(CommandError {
+            message: format!("Task \"{task_name}\" not found in configuration."),
+        });
+    };
+
     if task.script.is_none() && task.deps.is_empty() {
         let _ = execute!(
             io::stdout(),
@@ -153,8 +171,16 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
             Print(" Tasks require either a script or dependencies\n"),
             ResetColor,
         );
-        unimplemented!();
+        return Err(CommandError {
+            message: format!("Task \"{task_name}\" has no script or dependencies."),
+        });
     }
+
+    Ok(task)
+}
+
+fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
+    let _ = get_and_validate_task(config, task_name)?;
 
     let chain = config.get_execution_chain(task_name);
 
@@ -172,5 +198,73 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
         );
         task.execute()?;
     }
+    Ok(())
+}
+
+fn display_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
+    let _ = get_and_validate_task(config, task_name)?;
+
+    let chain = config.get_execution_chain(task_name);
+
+    let mut stdout = io::stdout();
+
+    for task in chain {
+        let _ = execute!(
+            stdout,
+            SetForegroundColor(Color::Blue),
+            Print("Would run task \""),
+            SetAttribute(Attribute::Bold),
+            Print(&task.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print("\"\n"),
+            ResetColor,
+        );
+
+        if !task.options.environment.is_empty() {
+            let _ = queue!(stdout, Print("Environment:\n"), ResetColor);
+        }
+
+        for (var, value) in task.options.environment.iter() {
+            let _ = queue!(
+                stdout,
+                Print("\t"),
+                SetAttribute(Attribute::Bold),
+                Print(var),
+                SetAttribute(Attribute::Reset),
+                Print(format!("\t {value}\n")),
+                ResetColor
+            );
+        }
+
+        let _ = queue!(
+            stdout,
+            Print("Working Directory: \n\t"),
+            SetAttribute(Attribute::Bold),
+            Print(task.options.working_directory.clone().display()),
+            SetAttribute(Attribute::Reset),
+            Print("\n"),
+            ResetColor,
+        );
+
+        if let Some(script) = &task.script {
+            for cmd in script {
+                let _ = queue!(
+                    stdout,
+                    SetForegroundColor(Color::Cyan),
+                    Print("Would execute \""),
+                    SetAttribute(Attribute::Bold),
+                    Print(&cmd),
+                    SetAttribute(Attribute::Reset),
+                    Print("\" \n"),
+                    ResetColor
+                );
+            }
+        }
+
+        let _ = queue!(stdout, Print("\n"), ResetColor,);
+        stdout.flush().unwrap();
+    }
+
     Ok(())
 }
