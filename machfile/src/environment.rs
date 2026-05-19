@@ -1,6 +1,25 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error, fmt};
 
-fn parse_environment_file(content: &str) -> Result<HashMap<String, String>, ()> {
+#[derive(Debug, PartialEq)]
+pub enum EnvironmentParseError {
+    NoEnvironmentFile,
+    CorruptEnvironmentFile,
+}
+
+impl fmt::Display for EnvironmentParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EnvironmentParseError::NoEnvironmentFile => write!(f, "no configuration file found"),
+            EnvironmentParseError::CorruptEnvironmentFile => {
+                write!(f, "configuration file could not be parsed")
+            }
+        }
+    }
+}
+
+impl Error for EnvironmentParseError {}
+
+fn parse_environment_file(content: &str) -> Result<HashMap<String, String>, EnvironmentParseError> {
     let mut result = HashMap::new();
 
     for line in content.lines() {
@@ -10,7 +29,7 @@ fn parse_environment_file(content: &str) -> Result<HashMap<String, String>, ()> 
         }
 
         let Some(parts) = line.split_once('=') else {
-            return Err(());
+            return Err(EnvironmentParseError::CorruptEnvironmentFile);
         };
 
         result.insert(parts.0.to_string(), parts.1.to_string());
@@ -63,6 +82,10 @@ mod tests {
         let result = parse_environment_file("A=B\nAAAA");
 
         assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EnvironmentParseError::CorruptEnvironmentFile
+        ));
     }
 
     #[test]
