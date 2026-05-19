@@ -67,6 +67,7 @@ pub mod utils;
 
 pub mod config;
 pub mod config_finder;
+mod environment;
 mod raw_config;
 
 pub use config::Config;
