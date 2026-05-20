@@ -4,6 +4,8 @@ use std::{collections::HashMap, error::Error, fmt};
 pub enum EnvironmentParseError {
     NoEnvironmentFile,
     CorruptEnvironmentFile,
+    InvalidQuotedValue(String),
+    WhitespaceAroundEquals,
 }
 
 impl fmt::Display for EnvironmentParseError {
@@ -12,6 +14,12 @@ impl fmt::Display for EnvironmentParseError {
             EnvironmentParseError::NoEnvironmentFile => write!(f, "no configuration file found"),
             EnvironmentParseError::CorruptEnvironmentFile => {
                 write!(f, "configuration file could not be parsed")
+            }
+            EnvironmentParseError::InvalidQuotedValue(key) => {
+                write!(f, "key '{key}' has invalid quoted value")
+            }
+            EnvironmentParseError::WhitespaceAroundEquals => {
+                write!(f, "whitespace around = is not allowed")
             }
         }
     }
@@ -23,23 +31,71 @@ fn parse_environment_file(content: &str) -> Result<HashMap<String, String>, Envi
     let mut result = HashMap::new();
 
     for line in content.lines() {
-        if line.is_empty() || line.chars().find(|c| !c.is_whitespace()) == Some('#') {
+        if line.trim().is_empty() || line.chars().find(|c| !c.is_whitespace()) == Some('#') {
             // skip empty lines and comments
             continue;
         }
 
-        let Some(parts) = line.split_once('=') else {
+        let Some(equal_sign) = line.find("=") else {
             return Err(EnvironmentParseError::CorruptEnvironmentFile);
         };
 
-        result.insert(parts.0.to_string(), parts.1.to_string());
+        if line.chars().nth(equal_sign - 1).unwrap().is_whitespace()
+            || line.chars().nth(equal_sign + 1).unwrap().is_whitespace()
+        {
+            return Err(EnvironmentParseError::WhitespaceAroundEquals);
+        }
+
+        let parts = line.split_once('=').unwrap();
+
+        let parsed_value = match parse_value(parts.1) {
+            Ok(val) => val,
+            Err(error) => match error {
+                EnvironmentParseError::InvalidQuotedValue(_) => {
+                    return Err(EnvironmentParseError::InvalidQuotedValue(
+                        parts.0.to_string(),
+                    ));
+                }
+                err => return Err(err),
+            },
+        };
+
+        result.insert(parts.0.to_string(), parsed_value);
     }
 
     Ok(result)
 }
 
+fn parse_value(value: &str) -> Result<String, EnvironmentParseError> {
+    let mut treated = value.trim().to_string();
+
+    if treated.starts_with('"') {
+        if !treated.ends_with('"') {
+            return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
+        }
+
+        treated = treated[1..treated.len() - 1].to_string();
+
+        treated = treated.replace("\\t", "\t");
+        treated = treated.replace("\\n", "\n");
+        treated = treated.replace("\\\\", "\\");
+    }
+
+    if treated.starts_with('\'') {
+        if !treated.ends_with('\'') {
+            return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
+        }
+    } else {
+        // TODO: variable expansion
+    }
+
+    Ok(treated)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
 
     #[test]
@@ -55,6 +111,23 @@ mod tests {
         let result = parse_environment_file("AAAA");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn spaces_around_equal_sign_produces_error() {
+        let mut result = parse_environment_file("A =B");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            EnvironmentParseError::WhitespaceAroundEquals
+        );
+
+        result = parse_environment_file("A= B");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            EnvironmentParseError::WhitespaceAroundEquals
+        );
     }
 
     #[test]
@@ -100,6 +173,17 @@ mod tests {
     }
 
     #[test]
+    fn lines_with_only_whitespace_are_skipped() {
+        let result = parse_environment_file("AB=A\n  ");
+
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.keys().count(), 1);
+        assert!(content.contains_key("AB"));
+        assert_eq!(content.get("AB").unwrap(), "A");
+    }
+
+    #[test]
     fn comment_lines_are_skipped() {
         let result = parse_environment_file("# COMMENT\n # AA\nAB=A");
 
@@ -132,5 +216,115 @@ mod tests {
         assert_eq!(content.keys().count(), 1);
         assert!(content.contains_key("AB"));
         assert_eq!(content.get("AB").unwrap(), "BD");
+    }
+
+    #[test]
+    fn unquoted_values_are_trimmed() {
+        let result = parse_value(" ASDD  ");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "ASDD");
+    }
+
+    #[test]
+    fn missing_closing_quote_produces_error() {
+        let result = parse_value("\"aaa");
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error,
+            EnvironmentParseError::InvalidQuotedValue(String::new())
+        );
+    }
+
+    #[test]
+    fn missing_closing_quote_produces_throws_error_with_key() {
+        let result = parse_environment_file("A=\"aaa");
+        assert!(result.is_err());
+
+        let error = result.unwrap_err();
+        assert_eq!(
+            error,
+            EnvironmentParseError::InvalidQuotedValue("A".to_string())
+        );
+    }
+
+    #[test]
+    fn double_quotes_are_removed_from_value() {
+        let result = parse_value("\"ASDF\"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "ASDF");
+    }
+
+    #[test]
+    fn double_quotes_preserve_whitespace() {
+        let result = parse_value("\" AA  \"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), " AA  ");
+    }
+
+    #[test]
+    fn double_quotes_allow_newline_escape_sequence() {
+        let result = parse_value("\"A\\nA\"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\nA");
+    }
+
+    #[test]
+    fn double_quotes_allow_tab_escape_sequence() {
+        let result = parse_value("\"A\\tA\"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\tA");
+    }
+
+    #[test]
+    fn double_quotes_allow_backslash_escape_sequence() {
+        let result = parse_value("\"A\\\\A\"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\\A");
+    }
+
+    #[test]
+    fn variable_expansion_works_in_unquoted_values() {
+        let result = parse_environment_file("A=AA\nB=$A");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.get("B").unwrap(), "AA");
+    }
+
+    #[test]
+    fn variable_expansion_works_in_double_quoted_values() {
+        let result = parse_environment_file("A=AA\nB=\"$A\"");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.get("B").unwrap(), "AA");
+    }
+
+    #[test]
+    fn variable_expansion_does_not_works_in_single_quoted_values() {
+        let result = parse_environment_file("A=AA\nB='$A'");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.get("B").unwrap(), "$A");
+    }
+
+    #[test]
+    fn variable_expansion_inserts_empty_string_on_missing_key() {
+        let result = parse_environment_file("B=a $C b");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.get("B").unwrap(), "a  b");
+    }
+
+    #[test]
+    fn variable_expansion_works_with_existing_environment_variables() {
+        unsafe {
+            env::set_var("VARIABLE_EXPANSION_TEST", "AA");
+        }
+
+        let result = parse_environment_file("B=$VARIABLE_EXPANSION_TEST");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.get("B").unwrap(), "AA");
     }
 }
