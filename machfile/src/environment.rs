@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, fmt, path::Path};
+use std::{collections::HashMap, env, error::Error, fmt, path::Path};
 
 #[derive(Debug, PartialEq)]
 pub enum EnvironmentParseError {
@@ -85,8 +85,10 @@ impl EnvironmentFile {
                 return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
             }
 
+            // Strip quotes
             treated = treated[1..treated.len() - 1].to_string();
 
+            // Replace allowed escape sequences
             treated = treated.replace("\\t", "\t");
             treated = treated.replace("\\n", "\n");
             treated = treated.replace("\\\\", "\\");
@@ -96,12 +98,107 @@ impl EnvironmentFile {
             if !treated.ends_with('\'') {
                 return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
             }
+            // Strip quotes
+            treated = treated[1..treated.len() - 1].to_string();
         } else {
-            // TODO: variable expansion
+            // Expand variables
+            let mut expanded = String::with_capacity(treated.len());
+            let mut chars = treated.char_indices().peekable();
+            while let Some((i, c)) = chars.next() {
+                if c != '$' {
+                    expanded.push(c);
+                    continue;
+                }
+
+                match chars.peek() {
+                    Some(&(_, '{')) => {
+                        // ${name}
+                        chars.next();
+                        let start = match chars.peek() {
+                            Some(&(idx, _)) => idx,
+                            None => {
+                                // no closing brace; treat literally
+                                expanded.push_str(&treated[i..]);
+                                break;
+                            }
+                        };
+                        let mut finish = None;
+                        while let Some((i2, c2)) = chars.next() {
+                            if c2 == '}' {
+                                finish = Some(i2);
+                                break;
+                            }
+                        }
+                        if let Some(idx) = finish {
+                            let variable_name = &treated[start..idx];
+                            if let Some(value) = self.get_variable_value(variable_name) {
+                                expanded.push_str(&value);
+                            }
+                        } else {
+                            // no closing brace found: treat the remainder literally
+                            expanded.push_str(&treated[i..]);
+                            break;
+                        }
+                    }
+                    Some(&(_, c)) if is_var_start(c) => {
+                        // $name
+                        let start = match chars.peek() {
+                            Some(&(idx, _)) => idx,
+                            None => treated.len(),
+                        };
+                        let mut finish = start;
+
+                        // find end of variable name
+                        while let Some(&(i2, c2)) = chars.peek() {
+                            if is_var_char(c2) {
+                                finish = i2;
+                                chars.next();
+                            } else {
+                                break;
+                            }
+                        }
+
+                        let end = if finish < treated.len() {
+                            let c = treated[finish..].chars().next().unwrap();
+                            finish + c.len_utf8()
+                        } else {
+                            treated.len()
+                        };
+
+                        let variable_name = &treated[start..end];
+
+                        if let Some(value) = self.get_variable_value(variable_name) {
+                            expanded.push_str(&value);
+                        }
+                    }
+                    _ => {
+                        // free '$', treat literally
+                        expanded.push('$');
+                    }
+                }
+            }
+            treated = expanded;
         }
 
         Ok(treated)
     }
+
+    fn get_variable_value(&self, name: &str) -> Option<String> {
+        if let Some(value) = &self.values.get(name) {
+            return Some(value.to_string());
+        } else if let Ok(value) = env::var(name) {
+            return Some(value);
+        }
+        None
+    }
+}
+
+fn is_var_start(c: char) -> bool {
+    c == '_' || c.is_ascii_alphabetic()
+}
+
+fn is_var_char(c: char) -> bool {
+    c == '_' || c.is_ascii_alphanumeric()
 }
 
 #[cfg(test)]
@@ -269,6 +366,13 @@ mod tests {
     }
 
     #[test]
+    fn single_quotes_are_removed_from_value() {
+        let result = EnvironmentFile::default().parse_value("'ASDF'");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "ASDF");
+    }
+
+    #[test]
     fn double_quotes_preserve_whitespace() {
         let result = EnvironmentFile::default().parse_value("\" AA  \"");
         assert!(result.is_ok());
@@ -329,6 +433,14 @@ mod tests {
     }
 
     #[test]
+    fn variable_expansion_inserts_empty_string_on_missing_bracketed_key() {
+        let result = EnvironmentFile::parse("B=a${C}b");
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.get("B").unwrap(), "ab");
+    }
+
+    #[test]
     fn variable_expansion_works_with_existing_environment_variables() {
         unsafe {
             env::set_var("VARIABLE_EXPANSION_TEST", "AA");
@@ -338,5 +450,29 @@ mod tests {
         assert!(result.is_ok());
         let content = result.unwrap().values;
         assert_eq!(content.get("B").unwrap(), "AA");
+    }
+
+    #[test]
+    fn variable_expansion_works_with_brackets() {
+        let result = EnvironmentFile::parse("A=AA\nB=${A}");
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.get("B").unwrap(), "AA");
+    }
+
+    #[test]
+    fn variable_expansion_with_unclosed_bracket_doesnt_perform_substitution() {
+        let result = EnvironmentFile::parse("A=AA\nB=${A");
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.get("B").unwrap(), "${A");
+    }
+
+    #[test]
+    fn variable_expansion_with_brackets_allow_non_whitespace_afterwards() {
+        let result = EnvironmentFile::parse("A=AC\nB=${A}DC");
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.get("B").unwrap(), "ACDC");
     }
 }
