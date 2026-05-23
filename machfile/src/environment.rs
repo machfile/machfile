@@ -80,13 +80,19 @@ impl EnvironmentFile {
     fn parse_value(&self, value: &str) -> Result<String, EnvironmentParseError> {
         let mut treated = value.trim().to_string();
 
-        if treated.starts_with('"') {
-            if !treated.ends_with('"') {
-                return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
+        if !treated.starts_with('\'') && !treated.starts_with('"') {
+            if let Some(i) = treated.find(&" # ") {
+                treated = treated[0..i].to_string();
             }
+        }
+
+        if treated.starts_with('"') {
+            let Some(end) = find_end_of_quoted_value('"', &treated) else {
+                return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
+            };
 
             // Strip quotes
-            treated = treated[1..treated.len() - 1].to_string();
+            treated = treated[1..end].to_string();
 
             // Replace allowed escape sequences
             treated = treated.replace("\\t", "\t");
@@ -95,11 +101,11 @@ impl EnvironmentFile {
         }
 
         if treated.starts_with('\'') {
-            if !treated.ends_with('\'') {
+            let Some(end) = find_end_of_quoted_value('\'', &treated) else {
                 return Err(EnvironmentParseError::InvalidQuotedValue(String::new()));
-            }
+            };
             // Strip quotes
-            treated = treated[1..treated.len() - 1].to_string();
+            treated = treated[1..end].to_string();
         } else {
             // Expand variables
             let mut expanded = String::with_capacity(treated.len());
@@ -199,6 +205,29 @@ fn is_var_start(c: char) -> bool {
 
 fn is_var_char(c: char) -> bool {
     c == '_' || c.is_ascii_alphanumeric()
+}
+
+/// Find the closing quote of a value
+fn find_end_of_quoted_value(quote: char, value: &str) -> Option<usize> {
+    let mut chars = value.char_indices().peekable();
+    let mut end = None;
+
+    chars.next();
+
+    while let Some((i, c)) = chars.next() {
+        if c == '\\' {
+            if let Some((_, _)) = chars.next() {
+                chars.next();
+            }
+        }
+
+        if c == quote {
+            end = Some(i);
+            break;
+        }
+    }
+
+    end
 }
 
 #[cfg(test)]
@@ -304,6 +333,27 @@ mod tests {
     }
 
     #[test]
+    fn inline_comment_without_leading_space_is_part_of_value() {
+        let result = EnvironmentFile::default().parse_value("AA# test");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA# test");
+    }
+
+    #[test]
+    fn inline_comment_without_following_space_is_part_of_value() {
+        let result = EnvironmentFile::default().parse_value("AA #test");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA #test");
+    }
+
+    #[test]
+    fn inline_comment_with_space_is_stripped() {
+        let result = EnvironmentFile::default().parse_value("AA # test");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA");
+    }
+
+    #[test]
     fn multiple_values_parses_correctly() {
         let result = EnvironmentFile::parse("AB=A\nCD=BD");
 
@@ -373,6 +423,27 @@ mod tests {
     }
 
     #[test]
+    fn single_quotes_strips_comment_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("'AA' # test");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA");
+    }
+
+    #[test]
+    fn single_quotes_strips_whitespace_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("'AA'   ");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA");
+    }
+
+    #[test]
+    fn single_quotes_strips_text_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("'AA'aaa");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "AA");
+    }
+
+    #[test]
     fn double_quotes_preserve_whitespace() {
         let result = EnvironmentFile::default().parse_value("\" AA  \"");
         assert!(result.is_ok());
@@ -396,6 +467,27 @@ mod tests {
     #[test]
     fn double_quotes_allow_backslash_escape_sequence() {
         let result = EnvironmentFile::default().parse_value("\"A\\\\A\"");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\\A");
+    }
+
+    #[test]
+    fn double_quotes_strips_comment_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("\"A\\\\A\" # test");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\\A");
+    }
+
+    #[test]
+    fn double_quotes_strips_whitespace_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("\"A\\\\A\"   ");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "A\\A");
+    }
+
+    #[test]
+    fn double_quotes_strips_text_after_final_quote() {
+        let result = EnvironmentFile::default().parse_value("\"A\\\\A\"aaa");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "A\\A");
     }
@@ -474,5 +566,39 @@ mod tests {
         assert!(result.is_ok());
         let content = result.unwrap().values;
         assert_eq!(content.get("B").unwrap(), "ACDC");
+    }
+
+    #[test]
+    fn find_end_of_quoted_value_returns_none_when_missing_closing_quote() {
+        let result = find_end_of_quoted_value('\'', "'aa");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_end_of_quoted_value_works_with_single_quotes_basic() {
+        let result = find_end_of_quoted_value('\'', "'aa'");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 3);
+    }
+
+    #[test]
+    fn find_end_of_quoted_value_works_with_single_quotes_with_following_text() {
+        let result = find_end_of_quoted_value('\'', "'aa'bb");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 3);
+    }
+
+    #[test]
+    fn find_end_of_quoted_value_works_with_double_quotes_basic() {
+        let result = find_end_of_quoted_value('"', "\"aa\"");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 3);
+    }
+
+    #[test]
+    fn find_end_of_quoted_value_works_with_double_quotes_with_following_text() {
+        let result = find_end_of_quoted_value('"', "\"aa\"bb");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 3);
     }
 }
