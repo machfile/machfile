@@ -47,17 +47,18 @@ impl EnvironmentFile {
                 continue;
             }
 
-            let Some(equal_sign) = line.find("=") else {
+            let Some(parts) = line.split_once('=') else {
                 return Err(EnvironmentParseError::CorruptEnvironmentFile);
             };
 
-            if line.chars().nth(equal_sign - 1).unwrap().is_whitespace()
-                || line.chars().nth(equal_sign + 1).unwrap().is_whitespace()
-            {
-                return Err(EnvironmentParseError::WhitespaceAroundEquals);
+            if parts.1.trim().is_empty() {
+                result.values.insert(parts.0.to_string(), String::new());
+                continue;
             }
 
-            let parts = line.split_once('=').unwrap();
+            if parts.0.ends_with(' ') || parts.1.starts_with(' ') {
+                return Err(EnvironmentParseError::WhitespaceAroundEquals);
+            }
 
             let parsed_value = match result.parse_value(parts.1) {
                 Ok(val) => val,
@@ -406,6 +407,50 @@ mod tests {
             error,
             EnvironmentParseError::InvalidQuotedValue("A".to_string())
         );
+    }
+
+    #[test]
+    fn empty_value_sets_empty_string_as_final_value() {
+        let result = EnvironmentFile::parse("A=");
+
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.keys().count(), 1);
+        assert!(content.contains_key("A"));
+        assert_eq!(content.get("A").unwrap(), "");
+    }
+
+    #[test]
+    fn whitespace_value_sets_empty_string_as_final_value() {
+        let result = EnvironmentFile::parse("A=  ");
+
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.keys().count(), 1);
+        assert!(content.contains_key("A"));
+        assert_eq!(content.get("A").unwrap(), "");
+    }
+
+    #[test]
+    fn empty_single_quoted_value_sets_empty_string_as_final_value() {
+        let result = EnvironmentFile::parse("A=''");
+
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.keys().count(), 1);
+        assert!(content.contains_key("A"));
+        assert_eq!(content.get("A").unwrap(), "");
+    }
+
+    #[test]
+    fn empty_double_quoted_value_sets_empty_string_as_final_value() {
+        let result = EnvironmentFile::parse("A=\"\"");
+
+        assert!(result.is_ok());
+        let content = result.unwrap().values;
+        assert_eq!(content.keys().count(), 1);
+        assert!(content.contains_key("A"));
+        assert_eq!(content.get("A").unwrap(), "");
     }
 
     #[test]
