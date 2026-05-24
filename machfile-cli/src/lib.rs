@@ -81,6 +81,7 @@
 
 mod cli;
 mod config_info;
+mod cli_config;
 
 #[cfg(feature = "complete")]
 mod complete;

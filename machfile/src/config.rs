@@ -4,8 +4,8 @@ use crate::{
 };
 use std::fmt::{Display, Formatter};
 use std::{
-    collections::{HashMap, HashSet},
-    fmt,
+    collections::{HashMap, HashSet}
+    ,
     path::{Path, PathBuf},
     process::Command,
 };
