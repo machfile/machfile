@@ -48,6 +48,12 @@ pub struct CommandError {
     pub message: String,
 }
 
+impl CommandError {
+    pub fn new(msg: &str) -> Self {
+        Self { message: msg.to_string() }
+    }
+}
+
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -381,5 +387,17 @@ mod tests {
         for name in &names {
             assert!(validate_task_name(name).is_ok());
         }
+    }
+
+    #[test]
+    fn command_error_new_assigns_error_message() {
+        let err = CommandError::new("test");
+        assert_eq!(err.message, "test");
+    }
+
+    #[test]
+    fn command_error_shows_correct_display_msg() {
+        let err = CommandError::new("test2");
+        assert_eq!(err.to_string(), "command encountered an unexpected error: test2");
     }
 }

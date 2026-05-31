@@ -80,7 +80,7 @@ use config_finder::get_mach_file_path;
 use raw_config::RawConfig;
 use utils::ConfigParseError;
 
-use crate::environment::Environment;
+use crate::{environment::Environment, utils::CommandError};
 
 /// The `MachConfig` is the main API for machfile
 #[derive(Debug)]
@@ -93,7 +93,30 @@ impl MachConfig {
     /// Execute a task by name
     ///
     /// Runs the entire chain of dependencies
-    fn execute_task(name: &str) {}
+    #[must_use]
+    pub fn execute_task(self, name: &str) -> Result<usize, CommandError> {
+        if !self.config.tasks.contains_key(name) {
+            return Err(CommandError::new("task not foud"));
+        }
+
+        // TODO: execute command chain via `execute_single_task`
+
+        Ok(0)
+    }
+
+    /// Execute a task by name
+    ///
+    /// Does **not** run dependencies. Use `execute_task` instead.
+    #[must_use]
+    pub fn execute_single_task(self, name: &str) -> Result<usize, CommandError> {
+        if !self.config.tasks.contains_key(name) {
+            return Err(CommandError::new("task not foud"));
+        }
+
+        // TODO: perform environment sustitution
+
+        Ok(0)
+    }
 }
 
 /// Load a mach configuration
