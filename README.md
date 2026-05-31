@@ -109,6 +109,25 @@ The following options are currently supported:
 - `environment` - Dictonary of keys and values that will be injected into the execution environment
   of the `script` commands.
 
+### Environment files
+
+Mach supports `.env` files. Values from environment files are **not** automatically passed into the
+environments of tasks, instead, individual values can be forwarded or used to construct other
+environment variables. Alternatively, the entire content fo the `.env` file can be forwarded to the
+invoked task.
+
+#### Env file value forwarding
+
+// TODO: fill out
+
+#### Env file value usage in scripts and `environment` values
+
+// TODO: fill out
+
+#### Forwarding of the entire env file
+
+// TODO: fill out
+
 ### Configuration examples
 
 The following is an example configuration written in `toml`:
