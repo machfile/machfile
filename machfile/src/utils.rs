@@ -50,7 +50,9 @@ pub struct CommandError {
 
 impl CommandError {
     pub fn new(msg: &str) -> Self {
-        Self { message: msg.to_string() }
+        Self {
+            message: msg.to_string(),
+        }
     }
 }
 
@@ -398,6 +400,9 @@ mod tests {
     #[test]
     fn command_error_shows_correct_display_msg() {
         let err = CommandError::new("test2");
-        assert_eq!(err.to_string(), "command encountered an unexpected error: test2");
+        assert_eq!(
+            err.to_string(),
+            "command encountered an unexpected error: test2"
+        );
     }
 }

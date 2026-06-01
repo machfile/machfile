@@ -6,7 +6,8 @@ use std::{
 };
 
 use crate::{
-    raw_config::{RawConfig},
+    environment::Environment,
+    raw_config::RawConfig,
     utils::{CommandError, ConfigParseError},
 };
 
@@ -103,6 +104,9 @@ pub struct Task {
 }
 
 impl Task {
+    /// Execute a task
+    ///
+    /// You should probably [`Task::evaluate_environment`] before calling this.
     pub fn execute(&self) -> Result<(), CommandError> {
         if let Some(script) = &self.script {
             for command in script {
@@ -134,6 +138,25 @@ impl Task {
         }
 
         Ok(())
+    }
+
+    /// Prepare the tasks script and environment for execution
+    pub fn evaluate_environment(mut self, env: &Environment) -> Result<Self, CommandError> {
+        // expand values in task environment option
+        for v in self.options.environment.values_mut() {
+            *v = env.expand_variables_in_str(v);
+        }
+
+        // expand values in task script
+        if let Some(ref mut script) = self.script {
+            for c in script.iter_mut() {
+                for a in c.args.iter_mut() {
+                    *a = env.expand_variables_in_str(a);
+                }
+            }
+        }
+
+        Ok(self)
     }
 }
 
@@ -168,5 +191,55 @@ impl ScriptCommand {
 impl Display for ScriptCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.command, self.args.join(" "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn task_evaluate_environment_expands_values_in_opt_env() {
+        let mut env = Environment::default();
+        env.values.insert("A".to_string(), "BB".to_string());
+
+        let mut environment = HashMap::new();
+        environment.insert("taskA".to_string(), "$A".to_string());
+
+        let mut task = Task {
+            options: TaskOptions {
+                environment,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = task.evaluate_environment(&env);
+        assert!(result.is_ok());
+        task = result.unwrap();
+        assert!(task.options.environment.contains_key("taskA"));
+        assert_eq!(task.options.environment.get("taskA").unwrap(), "BB");
+    }
+
+    #[test]
+    fn task_evaluate_environment_expands_values_in_script() {
+        let mut env = Environment::default();
+        env.values.insert("arg".to_string(), "BB".to_string());
+
+        let mut task = Task {
+            script: Some(vec![ScriptCommand {
+                command: "a".to_string(),
+                args: vec!["arg".to_string(), "${arg}-aa".to_string()],
+            }]),
+            ..Default::default()
+        };
+
+        let result = task.evaluate_environment(&env);
+        assert!(result.is_ok());
+        task = result.unwrap();
+        assert!(task.script.is_some());
+        let script = task.script.unwrap();
+        assert_eq!(script[0].args[0], "arg");
+        assert_eq!(script[0].args[1], "BB-aa");
     }
 }

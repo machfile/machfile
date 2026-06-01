@@ -37,6 +37,9 @@ impl fmt::Display for EnvironmentParseError {
 
 impl Error for EnvironmentParseError {}
 
+/// The `Environment` holds the env file values inside `values`, while also exposing a
+/// [`Environment::get`] method, that loads the value from the env file, falling back to the
+/// existing environment.
 #[derive(Debug)]
 pub struct Environment {
     pub values: HashMap<String, String>,

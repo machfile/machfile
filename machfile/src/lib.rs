@@ -67,7 +67,7 @@ pub mod utils;
 
 pub mod config;
 pub mod config_finder;
-mod environment;
+pub mod environment;
 mod raw_config;
 
 mod builder;
@@ -80,7 +80,7 @@ use config_finder::get_mach_file_path;
 use raw_config::RawConfig;
 use utils::ConfigParseError;
 
-use crate::{environment::Environment, utils::CommandError};
+use crate::{config::Task, environment::Environment, utils::CommandError};
 
 /// The `MachConfig` is the main API for machfile
 #[derive(Debug)]
@@ -93,27 +93,23 @@ impl MachConfig {
     /// Execute a task by name
     ///
     /// Runs the entire chain of dependencies
-    #[must_use]
-    pub fn execute_task(self, name: &str) -> Result<usize, CommandError> {
-        if !self.config.tasks.contains_key(name) {
-            return Err(CommandError::new("task not foud"));
+    pub fn execute_task(&self, name: &str) -> Result<usize, CommandError> {
+        let tasks = self.config.get_execution_chain(name);
+
+        for task in tasks {
+            self.execute_single_task(task)?;
         }
-
-        // TODO: execute command chain via `execute_single_task`
-
         Ok(0)
     }
 
     /// Execute a task by name
     ///
-    /// Does **not** run dependencies. Use `execute_task` instead.
-    #[must_use]
-    pub fn execute_single_task(self, name: &str) -> Result<usize, CommandError> {
-        if !self.config.tasks.contains_key(name) {
-            return Err(CommandError::new("task not foud"));
-        }
+    /// Does **not** run dependencies. Use [`MachConfig::execute_task`] instead.
+    pub fn execute_single_task(&self, t: &Task) -> Result<usize, CommandError> {
+        let mut task = t.clone();
 
-        // TODO: perform environment sustitution
+        task = task.evaluate_environment(&self.environment).unwrap();
+        task.execute()?;
 
         Ok(0)
     }

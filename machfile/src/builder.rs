@@ -13,7 +13,15 @@ pub enum BuilderError {
     EnvParseError(EnvironmentParseError),
 }
 
-#[derive(Default)]
+/// The `Builder` allows construction of a mach context
+///
+/// The resulting [`MachConfig`] bundles the [`Environment`] and the [`Config`] constructed based on
+/// the provided settings.
+///
+/// The fastest way to construct a configuration is using  [`Builder::from_current_dir`], which will
+/// build a config based on the current working directory, searching upwards if inside a git
+/// repository, and loading a `.env` file located in the same directory.
+#[derive(Debug, Default)]
 pub struct Builder {
     directory: PathBuf,
     env_file_override: Option<PathBuf>,
@@ -65,8 +73,8 @@ impl Builder {
         self
     }
 
-    /// Construct the `MachConfig` from the settings
-    pub fn build(self) -> Result<MachConfig, BuilderError> {
+    /// Construct the [`MachConfig`] from the settings
+    pub fn build(mut self) -> Result<MachConfig, BuilderError> {
         let config: Config = {
             let path = if self.disable_auto_discover {
                 match check_dir_for_config(&self.directory) {
@@ -98,6 +106,8 @@ impl Builder {
                 ));
             };
 
+            self.directory = path.clone();
+
             match parse_config(&content, &path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -119,7 +129,19 @@ impl Builder {
                 }
             }
         } else {
-            Environment::default()
+            let mut env_path = self.directory.clone();
+            env_path.set_file_name(".env");
+
+            if env_path.is_file() {
+                match Environment::load_file(&env_path) {
+                    Ok(env) => env,
+                    Err(e) => {
+                        return Err(BuilderError::EnvParseError(e));
+                    }
+                }
+            } else {
+                Environment::default()
+            }
         };
 
         Ok(MachConfig {
