@@ -1,13 +1,13 @@
+use std::fmt::{Display, Formatter};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    process::Command,
+};
+
 use crate::{
     raw_config::RawConfig,
     utils::{CommandError, ConfigParseError},
-};
-use std::fmt::{Display, Formatter};
-use std::{
-    collections::{HashMap, HashSet}
-    ,
-    path::{Path, PathBuf},
-    process::Command,
 };
 
 /// The main struct holding all [tasks](`Task`)

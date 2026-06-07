@@ -1,5 +1,6 @@
-use crate::cli::build_cli_commands;
 use std::env;
+
+use crate::cli::build_cli_commands;
 
 /// Holds flags that are important for the whole execution of the CLI
 #[derive(Debug, Clone, Default)]

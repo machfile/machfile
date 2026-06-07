@@ -1,13 +1,15 @@
+use std::io::Write;
+use std::{env, io};
+
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
 use log::warn;
-use std::io::Write;
-use std::{env, io};
 
-use crate::cli_config::{create_early_cli_config, CliConfig};
+use crate::cli_config::{CliConfig, create_early_cli_config};
+
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
 use crate::config_info::{print_config, print_options, print_task_config};
@@ -78,7 +80,6 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 
     app
 }
-
 
 /// Execute the [`clap`] CLI
 ///
