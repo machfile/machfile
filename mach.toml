@@ -32,3 +32,5 @@ options.working_directory = "machfile-cli"
 desc = "Clean dependencies and artifacts, then install the current version"
 deps = ["clean", "install"]
 
+[test_env]
+script = "echo $EDITOR"
