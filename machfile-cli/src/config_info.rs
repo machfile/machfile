@@ -168,7 +168,7 @@ fn print_dependencies(stdout: &mut Stdout, config: &Config, deps: &Vec<String>) 
     let _ = queue!(stdout, Print('\n'));
 }
 
-fn print_options(stdout: &mut Stdout, opts: &TaskOptions) {
+pub fn print_options(stdout: &mut Stdout, opts: &TaskOptions) {
     let _ = queue!(
         stdout,
         Print("Working directory\n\t"),

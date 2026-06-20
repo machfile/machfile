@@ -1,6 +1,6 @@
+use std::fmt::{Display, Formatter};
 use std::{
     collections::{HashMap, HashSet},
-    fmt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -165,8 +165,8 @@ impl ScriptCommand {
     }
 }
 
-impl fmt::Display for ScriptCommand {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ScriptCommand {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.command, self.args.join(" "))
     }
 }
