@@ -1,17 +1,19 @@
+use std::io::Write;
 use std::{env, io};
 
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
-    execute,
+    execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
 use log::warn;
 
-use machfile::{config::Config, load_config, utils::CommandError};
+use crate::cli_config::{CliConfig, create_early_cli_config};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
-use crate::config_info::{print_config, print_task_config};
+use crate::config_info::{print_config, print_options, print_task_config};
+use machfile::{config::Config, load_config, utils::CommandError};
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -93,6 +95,8 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
 
+    let mut cli_config = create_early_cli_config();
+
     let config = match load_config(config_override) {
         Err(error) => {
             match error {
@@ -120,6 +124,7 @@ pub fn cli() -> Result<(), CommandError> {
     };
 
     let matches = build_cli_commands(&config).get_matches();
+    cli_config.update_from_matches(&matches);
 
     match matches.subcommand() {
         None => {
@@ -144,8 +149,10 @@ pub fn cli() -> Result<(), CommandError> {
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => {
-                    if matches.get_flag("show_config") {
+                (name, _args) => {
+                    if matches.get_flag("dry_run") {
+                        display_task(&conf, name, &cli_config)
+                    } else if matches.get_flag("show_config") {
                         print_task_config(&conf, cmd);
                         Ok(())
                     } else {
@@ -157,8 +164,16 @@ pub fn cli() -> Result<(), CommandError> {
     }
 }
 
-fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
-    let task = config.tasks.get(task_name).unwrap();
+fn get_and_validate_task<'a>(
+    config: &'a Config,
+    task_name: &str,
+) -> Result<&'a machfile::config::Task, CommandError> {
+    let Some(task) = config.tasks.get(task_name) else {
+        return Err(CommandError {
+            message: format!("Task \"{task_name}\" not found in configuration."),
+        });
+    };
+
     if task.script.is_none() && task.deps.is_empty() {
         let _ = execute!(
             io::stdout(),
@@ -170,8 +185,16 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
             Print(" Tasks require either a script or dependencies\n"),
             ResetColor,
         );
-        unimplemented!();
+        return Err(CommandError {
+            message: format!("Task \"{task_name}\" has no script or dependencies."),
+        });
     }
+
+    Ok(task)
+}
+
+fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
+    let _ = get_and_validate_task(config, task_name)?;
 
     let chain = config.get_execution_chain(task_name);
 
@@ -189,5 +212,55 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
         );
         task.execute()?;
     }
+    Ok(())
+}
+
+fn display_task(
+    config: &Config,
+    task_name: &str,
+    cli_config: &CliConfig,
+) -> Result<(), CommandError> {
+    let _ = get_and_validate_task(config, task_name)?;
+
+    let chain = config.get_execution_chain(task_name);
+
+    let mut stdout = io::stdout();
+
+    for task in chain {
+        let _ = execute!(
+            stdout,
+            SetForegroundColor(Color::Blue),
+            Print("Would run task \""),
+            SetAttribute(Attribute::Bold),
+            Print(&task.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print("\"\n"),
+            ResetColor,
+        );
+
+        if cli_config.is_verbose() {
+            print_options(&mut stdout, &task.options);
+        }
+
+        if let Some(script) = &task.script {
+            for cmd in script {
+                let _ = queue!(
+                    stdout,
+                    SetForegroundColor(Color::Cyan),
+                    Print("Would execute \""),
+                    SetAttribute(Attribute::Bold),
+                    Print(&cmd),
+                    SetAttribute(Attribute::Reset),
+                    Print("\" \n"),
+                    ResetColor
+                );
+            }
+        }
+
+        let _ = queue!(stdout, Print("\n"), ResetColor,);
+        stdout.flush().unwrap();
+    }
+
     Ok(())
 }
