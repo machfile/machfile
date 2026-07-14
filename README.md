@@ -112,21 +112,36 @@ The following options are currently supported:
 ### Environment files
 
 Mach supports `.env` files. Values from environment files are **not** automatically passed into the
-environments of tasks, instead, individual values can be forwarded or used to construct other
-environment variables. Alternatively, the entire content fo the `.env` file can be forwarded to the
-invoked task.
+environments of tasks, instead, individual values can be used to construct environment variables for 
+the called script.
 
-#### Env file value forwarding
-
-// TODO: fill out
+Environment file reading can be deactivated by the `--no-env-file` flag and the default `.env`
+filename can be overriden with the `--env-file` argument.
 
 #### Env file value usage in scripts and `environment` values
 
-// TODO: fill out
+Given a `.env` file:
 
-#### Forwarding of the entire env file
+```
+ENVIRONMENT=prod
+```
 
-// TODO: fill out
+You could use `ENVIRONMENT` as a parameter for a script command:
+
+```toml
+script = "node --env=$ENVIRONMENT"
+```
+
+And you can also construct a environment variable (or pass it forward):
+
+```toml
+[env_values]
+script = """printenv ENVIRONMENT
+printenv BACKEND_ENVIRONMENT"""
+[env_values.options.environment]
+ENVIRONMENT = "$ENVIRONMENT"
+BACKEND_ENVIRONMENT = "${ENVIRONMENT}_BACKEND"
+```
 
 ### Configuration examples
 
