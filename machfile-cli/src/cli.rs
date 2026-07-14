@@ -58,7 +58,24 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
                 .long("show-config")
                 .help("Show detected configuration"),
         );
+
+        app = app.arg(
+            Arg::new("dry_run")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .long("dry-run")
+                .help("Displays each script that would be executed without executing them"),
+        );
     }
+    
+    app = app.arg(
+        Arg::new("verbose")
+            .action(ArgAction::SetTrue)
+            .global(true)
+            .long("verbose")
+            .short('v')
+            .help("Show additional information"),
+    );
 
     app
 }
