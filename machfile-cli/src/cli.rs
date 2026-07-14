@@ -67,7 +67,7 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
                 .help("Displays each script that would be executed without executing them"),
         );
     }
-    
+
     app = app.arg(
         Arg::new("verbose")
             .action(ArgAction::SetTrue)
