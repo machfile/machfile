@@ -7,7 +7,7 @@ use crossterm::{
 };
 use log::warn;
 
-use machfile::{Builder, Config, BuilderError, MachConfig, utils::CommandError};
+use machfile::{Builder, Config, MachConfig, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
@@ -26,7 +26,7 @@ fn build_clap_styles() -> styling::Styles {
 ///
 /// This constructs dynamic commands based on the found configuration. See [`parse_config`] for how
 /// configuration is loaded.
-pub fn build_cli_commands(config: &Option<MachConfig>) -> Command {
+pub fn build_cli_commands(config: &Option<&Config>) -> Command {
     let mut app = Command::new("mach")
         .author(crate_authors!("\n"))
         .version(crate_version!())
@@ -41,8 +41,24 @@ pub fn build_cli_commands(config: &Option<MachConfig>) -> Command {
         app = add_complete_commands(app);
     }
 
+    // Environment arguments
+    app = app
+        .arg(
+            Arg::new("disable_env_file")
+                .action(ArgAction::SetTrue)
+                .long("no-env-file")
+                .help("Disable env file parsing"),
+        )
+        .arg(
+            Arg::new("env_file")
+                .action(ArgAction::Set)
+                .conflicts_with("disable_env_file")
+                .long("env-file")
+                .help("Override env file path"),
+        );
+
     if let Some(conf) = config {
-        for (name, command) in &conf.config.tasks {
+        for (name, command) in &conf.tasks {
             let mut sub = Command::new(name);
             if let Some(desc) = &command.desc {
                 sub = sub.about(desc);
@@ -92,37 +108,32 @@ pub fn build_cli_commands(config: &Option<MachConfig>) -> Command {
 /// Throws errors upwards, so the CLI can exit accordingly
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
-    let builder = if let Some(c) = config_override {
+    let mut builder = if let Some(c) = config_override {
         Builder::new(PathBuf::from(c))
     } else {
         Builder::from_current_dir()
     };
 
-    let config = match builder.build() {
+    let config = match builder.get_config() {
         Err(e) => {
             match e {
-                BuilderError::EnvParseError(e) => {
-                    warn!("Failed to parse environment: {e}");
+                machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
+                    warn!("{message}");
+                    let _ = execute!(
+                        io::stdout(),
+                        SetForegroundColor(Color::Red),
+                        SetAttribute(Attribute::Bold),
+                        Print("[Error]"),
+                        SetAttribute(Attribute::Reset),
+                        SetForegroundColor(Color::Red),
+                        Print(" Failed to parse the configuration:\n"),
+                        Print(message),
+                        ResetColor,
+                    );
                 }
-                BuilderError::ConfigParseError(e) => match e {
-                    machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
-                        warn!("{message}");
-                        let _ = execute!(
-                            io::stdout(),
-                            SetForegroundColor(Color::Red),
-                            SetAttribute(Attribute::Bold),
-                            Print("[Error]"),
-                            SetAttribute(Attribute::Reset),
-                            SetForegroundColor(Color::Red),
-                            Print(" Failed to parse the configuration:\n"),
-                            Print(message),
-                            ResetColor,
-                        );
-                    }
-                    _ => {
-                        warn!("Failed to load/parse configuration: {e}");
-                    }
-                },
+                _ => {
+                    warn!("Failed to load/parse configuration: {e}");
+                }
             }
             None
         }
@@ -131,10 +142,20 @@ pub fn cli() -> Result<(), CommandError> {
 
     let matches = build_cli_commands(&config).get_matches();
 
+    if matches.get_flag("disable_env_file") {
+        println!("Disable env file: {}", matches.get_flag("disable_env_file"));
+        builder = builder.disable_env_file();
+    }
+    if let Some(env_file) = matches.get_one::<String>("env_file") {
+        builder = builder.with_env_file(PathBuf::from(env_file));
+    }
+
+    let mach_config = builder.build();
+
     match matches.subcommand() {
         None => {
             if matches.get_flag("show_config") {
-                let conf = config.unwrap();
+                let conf = mach_config.unwrap();
                 print_config(&conf.config);
             }
             Ok(())
@@ -142,14 +163,14 @@ pub fn cli() -> Result<(), CommandError> {
         #[cfg(feature = "complete")]
         Some(("setup_complete", args)) => handle_setup_complete(args),
         Some((cmd, args)) => {
-            if config.is_none() {
+            if mach_config.is_err() {
                 println!("Failed to parse configuration");
                 return Err(CommandError {
                     message: "failed to parse configuration".to_owned(),
                 });
             }
 
-            let conf = config.unwrap();
+            let conf = mach_config.unwrap();
 
             match (cmd, args) {
                 #[cfg(feature = "complete")]
@@ -185,6 +206,22 @@ fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
         return Err(CommandError {
             message: format!("Task \"{task_name}\" has no script or dependencies."),
         });
+    }
+    let chain = config.get_task_execution_chain(task_name);
+
+    for task in chain {
+        let _ = execute!(
+            io::stdout(),
+            SetForegroundColor(Color::Blue),
+            Print("Running task \""),
+            SetAttribute(Attribute::Bold),
+            Print(&task.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print("\"\n"),
+            ResetColor,
+        );
+        task.execute()?;
     }
 
     Ok(())

@@ -1,4 +1,4 @@
-use std::{env, fs::read_to_string, path::PathBuf};
+use std::{env, error::Error, fmt, fs::read_to_string, path::PathBuf};
 
 use crate::{
     Config, MachConfig,
@@ -8,10 +8,22 @@ use crate::{
     utils::ConfigParseError,
 };
 
+#[derive(Debug)]
 pub enum BuilderError {
     ConfigParseError(ConfigParseError),
     EnvParseError(EnvironmentParseError),
 }
+
+impl fmt::Display for BuilderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BuilderError::ConfigParseError(e) => write!(f, "{e}"),
+            BuilderError::EnvParseError(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl Error for BuilderError {}
 
 /// The `Builder` allows construction of a mach context
 ///
@@ -27,6 +39,7 @@ pub struct Builder {
     env_file_override: Option<PathBuf>,
     disable_env_file: bool,
     disable_auto_discover: bool,
+    config: Option<Config>,
 }
 
 impl Builder {
@@ -75,45 +88,14 @@ impl Builder {
 
     /// Construct the [`MachConfig`] from the settings
     pub fn build(mut self) -> Result<MachConfig, BuilderError> {
-        let config: Config = {
-            let path = if self.disable_auto_discover {
-                match check_dir_for_config(&self.directory) {
-                    Ok(p) => {
-                        if let Some(p) = p {
-                            p
-                        } else {
-                            return Err(BuilderError::ConfigParseError(
-                                ConfigParseError::NoConfigFile,
-                            ));
-                        }
-                    }
-                    Err(e) => {
-                        return Err(BuilderError::ConfigParseError(e));
-                    }
-                }
-            } else {
-                match get_mach_file_path(&self.directory) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        return Err(BuilderError::ConfigParseError(e));
-                    }
-                }
-            };
-
-            let Ok(content) = read_to_string(path.clone()) else {
-                return Err(BuilderError::ConfigParseError(
-                    ConfigParseError::CorruptConfigFile,
-                ));
-            };
-
-            self.directory = path.clone();
-
-            match parse_config(&content, &path) {
+        let config: Config = match self.config {
+            Some(c) => c,
+            None => match self.build_config() {
                 Ok(c) => c,
                 Err(e) => {
                     return Err(BuilderError::ConfigParseError(e));
                 }
-            }
+            },
         };
 
         let environment: Environment = if let Some(env_file) = self.env_file_override {
@@ -148,5 +130,57 @@ impl Builder {
             environment,
             config,
         })
+    }
+
+    /// Get configuration or create it
+    pub fn get_config(&mut self) -> Result<&Config, ConfigParseError> {
+        if self.config.is_none() {
+            let c = self.build_config()?;
+            self.config = Some(c);
+        }
+
+        Ok(self.config.as_ref().expect("value just set"))
+    }
+
+    /// Build the configuration
+    fn build_config(&mut self) -> Result<Config, ConfigParseError> {
+        let config = {
+            let path = if self.disable_auto_discover {
+                match check_dir_for_config(&self.directory) {
+                    Ok(p) => {
+                        if let Some(p) = p {
+                            p
+                        } else {
+                            return Err(ConfigParseError::NoConfigFile);
+                        }
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            } else {
+                match get_mach_file_path(&self.directory) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            };
+
+            let Ok(content) = read_to_string(path.clone()) else {
+                return Err(ConfigParseError::CorruptConfigFile);
+            };
+
+            self.directory = path.clone();
+
+            match parse_config(&content, &path) {
+                Ok(c) => c,
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        };
+
+        Ok(config)
     }
 }
