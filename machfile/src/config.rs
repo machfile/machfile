@@ -1,12 +1,14 @@
-use std::fmt::{Display, Formatter};
 use std::{
     collections::{HashMap, HashSet},
+    env::current_dir,
+    fmt::{Display, Formatter},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use crate::{
-    raw_config::RawConfig,
+    config_finder::get_mach_file_path,
+    raw_config::{self, RawConfig},
     utils::{CommandError, ConfigParseError},
 };
 
@@ -15,6 +17,21 @@ use crate::{
 pub struct Config {
     pub path: PathBuf,
     pub tasks: HashMap<String, Task>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        if let Ok(cwd) = current_dir()
+            && let Ok(mach_path) = get_mach_file_path(&cwd)
+        {
+            // TODO: Call parsing here
+        }
+
+        Config {
+            path: PathBuf::new(),
+            tasks: HashMap::new(),
+        }
+    }
 }
 
 impl Config {

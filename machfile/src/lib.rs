@@ -76,7 +76,23 @@ use config_finder::get_mach_file_path;
 use raw_config::RawConfig;
 use utils::ConfigParseError;
 
-/// Load a mach configuration into memory
+use crate::environment::Environment;
+
+/// The `MachConfig` is the main API for machfile
+#[derive(Default)]
+pub struct MachConfig {
+    pub environment: Environment,
+    pub config: Config,
+}
+
+impl MachConfig {
+    /// Execute a task by name
+    ///
+    /// Runs the entire chain of dependencies
+    fn execute_task(name: &str) {}
+}
+
+/// Load a mach configuration
 ///
 /// If an override is provided, the provided override is loaded. Otherwise, the function tries to
 /// find a configuration file in the current directory, and in the case of the working directory
