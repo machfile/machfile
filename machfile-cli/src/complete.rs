@@ -3,7 +3,7 @@ use clap_complete::{Generator, Shell, generate};
 use log::warn;
 use std::io;
 
-use machfile::{load_config, utils::CommandError};
+use machfile::{Builder, utils::CommandError};
 
 use crate::cli::build_cli_commands;
 
@@ -98,7 +98,7 @@ pub fn handle_auto_complete(args: &ArgMatches) -> Result<(), CommandError> {
         });
     }
 
-    let config = match load_config(None) {
+    let config = match Builder::from_current_dir().build() {
         Ok(conf) => Some(conf),
         Err(_) => {
             warn!("Failed to parse config during auto complete call");

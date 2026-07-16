@@ -1,5 +1,4 @@
-use std::io::Write;
-use std::{env, io};
+use std::{env, io::{self, Write}, path::PathBuf};
 
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
@@ -8,9 +7,7 @@ use crossterm::{
 };
 use log::warn;
 
-use machfile::{
-    Builder, BuilderError, MachConfig, config::Config, load_config, utils::CommandError,
-};
+use machfile::{Builder, Config, BuilderError, MachConfig, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
@@ -29,7 +26,7 @@ fn build_clap_styles() -> styling::Styles {
 ///
 /// This constructs dynamic commands based on the found configuration. See [`parse_config`] for how
 /// configuration is loaded.
-pub fn build_cli_commands(config: &Option<Config>) -> Command {
+pub fn build_cli_commands(config: &Option<MachConfig>) -> Command {
     let mut app = Command::new("mach")
         .author(crate_authors!("\n"))
         .version(crate_version!())
@@ -45,7 +42,7 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
     }
 
     if let Some(conf) = config {
-        for (name, command) in &conf.tasks {
+        for (name, command) in &conf.config.tasks {
             let mut sub = Command::new(name);
             if let Some(desc) = &command.desc {
                 sub = sub.about(desc);
@@ -95,34 +92,13 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 /// Throws errors upwards, so the CLI can exit accordingly
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
-
-    let config = match load_config(config_override) {
-        Err(error) => {
-            match error {
-                machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
-                    warn!("{message}");
-                    let _ = execute!(
-                        io::stdout(),
-                        SetForegroundColor(Color::Red),
-                        SetAttribute(Attribute::Bold),
-                        Print("[Error]"),
-                        SetAttribute(Attribute::Reset),
-                        SetForegroundColor(Color::Red),
-                        Print(" Failed to parse the configuration:\n"),
-                        Print(message),
-                        ResetColor,
-                    );
-                }
-                _ => {
-                    warn!("Failed to load/parse configuration: {error}");
-                }
-            }
-            None
-        }
-        Ok(conf) => Some(conf),
+    let builder = if let Some(c) = config_override {
+        Builder::new(PathBuf::from(c))
+    } else {
+        Builder::from_current_dir()
     };
 
-    let builder_config = match Builder::from_current_dir().build() {
+    let config = match builder.build() {
         Err(e) => {
             match e {
                 BuilderError::EnvParseError(e) => {
@@ -153,15 +129,13 @@ pub fn cli() -> Result<(), CommandError> {
         Ok(conf) => Some(conf),
     };
 
-    println!("{builder_config:?}");
-
     let matches = build_cli_commands(&config).get_matches();
 
     match matches.subcommand() {
         None => {
             if matches.get_flag("show_config") {
                 let conf = config.unwrap();
-                print_config(&conf);
+                print_config(&conf.config);
             }
             Ok(())
         }
@@ -175,7 +149,7 @@ pub fn cli() -> Result<(), CommandError> {
                 });
             }
 
-            let conf = builder_config.unwrap();
+            let conf = config.unwrap();
 
             match (cmd, args) {
                 #[cfg(feature = "complete")]
