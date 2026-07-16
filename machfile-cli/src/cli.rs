@@ -4,14 +4,14 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
+use clap::{Arg, ArgAction, ArgMatches, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
 use log::{debug, warn};
 
-use machfile::{Builder, Config, MachConfig, utils::CommandError};
+use machfile::{Builder, Config, MachConfig, config::ScriptCommand, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
@@ -45,7 +45,7 @@ pub fn build_cli_commands(config: &Option<&Config>) -> Command {
         app = add_complete_commands(app);
     }
 
-    // Environment arguments
+    // Global arguments and flags
     app = app
         .arg(
             Arg::new("disable_env_file")
@@ -76,24 +76,33 @@ pub fn build_cli_commands(config: &Option<&Config>) -> Command {
                 sub = sub.about(desc);
             }
 
-            app = app.subcommand(sub);
-        }
-
-        app = app
-            .arg(
-                Arg::new("show_config")
-                    .action(ArgAction::SetTrue)
-                    .global(true)
-                    .long("show-config")
-                    .help("Show detected configuration"),
-            )
-            .arg(
+            // Add dry-run only to commands
+            sub = sub.arg(
                 Arg::new("dry_run")
                     .action(ArgAction::SetTrue)
-                    .global(true)
                     .long("dry-run")
                     .help("Displays each script that would be executed without executing them"),
             );
+
+            if command.options.allow_args {
+                sub = sub.arg(
+                    Arg::new("args")
+                        .num_args(0..)
+                        .help("Arguments to pass to the first command of the script")
+                        .trailing_var_arg(true),
+                );
+            }
+
+            app = app.subcommand(sub);
+        }
+
+        app = app.arg(
+            Arg::new("show_config")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .long("show-config")
+                .help("Show detected configuration"),
+        );
     }
 
     app
@@ -182,14 +191,12 @@ pub fn cli() -> Result<(), CommandError> {
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _) => {
-                    if matches.get_flag("dry_run") {
-                        display_task(&conf, name)
-                    } else if matches.get_flag("show_config") {
+                (name, args) => {
+                    if matches.get_flag("show_config") {
                         print_task_config(&conf.config, cmd);
                         Ok(())
                     } else {
-                        run_task(&conf, name)
+                        run_task(&conf, name, args, args.get_flag("dry_run"))
                     }
                 }
             }
@@ -197,11 +204,19 @@ pub fn cli() -> Result<(), CommandError> {
     }
 }
 
-fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
+fn run_task(
+    config: &MachConfig,
+    task_name: &str,
+    args: &ArgMatches,
+    dry_run: bool,
+) -> Result<(), CommandError> {
     let task = config.config.tasks.get(task_name).unwrap();
+
+    let mut stdout = io::stdout();
+
     if task.script.is_none() && task.deps.is_empty() {
         let _ = execute!(
-            io::stdout(),
+            stdout,
             SetForegroundColor(Color::Red),
             SetAttribute(Attribute::Bold),
             Print("[Error]"),
@@ -214,36 +229,26 @@ fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
             message: format!("Task \"{task_name}\" has no script or dependencies."),
         });
     }
+
+    let mut script_args: Option<Vec<String>> = if task.options.allow_args {
+        args.get_many::<String>("args")
+            .map(|a| a.map(String::from).collect())
+    } else {
+        None
+    };
+
     let chain = config.get_task_execution_chain(task_name);
+    let last_task_idx = chain.len() - 1;
 
-    for task in chain {
-        let _ = execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Blue),
-            Print("Running task \""),
-            SetAttribute(Attribute::Bold),
-            Print(&task.name),
-            SetAttribute(Attribute::Reset),
-            SetForegroundColor(Color::Blue),
-            Print("\"\n"),
-            ResetColor,
-        );
-        task.execute()?;
-    }
-
-    Ok(())
-}
-
-fn display_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
-    let chain = config.config.get_execution_chain(task_name);
-
-    let mut stdout = io::stdout();
-
-    for task in chain {
-        let _ = execute!(
+    for (ti, task) in chain.iter().enumerate() {
+        let _ = queue!(
             stdout,
             SetForegroundColor(Color::Blue),
-            Print("Would run task \""),
+            Print(if dry_run {
+                "Would run task \""
+            } else {
+                "Running task \""
+            }),
             SetAttribute(Attribute::Bold),
             Print(&task.name),
             SetAttribute(Attribute::Reset),
@@ -256,24 +261,48 @@ fn display_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError
             print_options(&mut stdout, &task.options);
         }
 
-        if let Some(script) = &task.script {
-            for cmd in script {
-                let _ = queue!(
-                    stdout,
-                    SetForegroundColor(Color::Cyan),
-                    Print("Would execute \""),
-                    SetAttribute(Attribute::Bold),
-                    Print(&cmd),
-                    SetAttribute(Attribute::Reset),
-                    Print("\" \n"),
-                    ResetColor
-                );
+        if dry_run {
+            if let Some(script) = &task.script {
+                for (ci, cmd) in script.iter().enumerate() {
+                    if ti == last_task_idx
+                        && ci == 0
+                        && let Some(ref mut args) = script_args
+                    {
+                        let mut expanded_comand = cmd.clone();
+                        expanded_comand.args.append(args);
+                        queue_cmd_print(&mut stdout, &expanded_comand);
+                    } else {
+                        queue_cmd_print(&mut stdout, cmd);
+                    }
+                }
+            }
+
+            let _ = queue!(stdout, Print("\n"), ResetColor,);
+        } else {
+            // Only flushing stdout here improves rendering on dry-runs
+            stdout.flush().unwrap();
+            if ti == last_task_idx {
+                task.execute_with_args(script_args.clone())?;
+            } else {
+                task.execute()?;
             }
         }
-
-        let _ = queue!(stdout, Print("\n"), ResetColor,);
-        stdout.flush().unwrap();
     }
 
+    stdout.flush().unwrap();
+
     Ok(())
+}
+
+fn queue_cmd_print(stdout: &mut io::Stdout, cmd: &ScriptCommand) {
+    let _ = queue!(
+        stdout,
+        SetForegroundColor(Color::Cyan),
+        Print("Would execute \""),
+        SetAttribute(Attribute::Bold),
+        Print(&cmd),
+        SetAttribute(Attribute::Reset),
+        Print("\" \n"),
+        ResetColor
+    );
 }

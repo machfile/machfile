@@ -91,6 +91,7 @@ impl RawTaskConfig {
 struct RawTaskOptions {
     working_directory: Option<String>,
     environment: Option<HashMap<String, String>>,
+    allow_args: Option<bool>,
 }
 
 impl RawTaskOptions {
@@ -106,10 +107,12 @@ impl RawTaskOptions {
         }
 
         let environment: HashMap<String, String> = self.environment.unwrap_or_default();
+        let allow_args = self.allow_args.unwrap_or_default();
 
         Ok(TaskOptions {
             working_directory,
             environment,
+            allow_args,
         })
     }
 }
@@ -124,10 +127,7 @@ mod tests {
 
     #[test]
     fn raw_task_options_parse_correctly_with_minimal_data() {
-        let opts = RawTaskOptions {
-            working_directory: None,
-            environment: None,
-        };
+        let opts = RawTaskOptions::default();
         let path = Path::new("/tmp");
 
         let result = opts.parse(&path);
@@ -139,7 +139,7 @@ mod tests {
     fn raw_task_options_constructs_relative_working_dir_correctly() {
         let opts = RawTaskOptions {
             working_directory: Some("src".to_string()),
-            environment: None,
+            ..Default::default()
         };
         let calling_directory_buf = current_dir().unwrap();
         let mut final_directory_buf = calling_directory_buf.clone();
@@ -157,7 +157,7 @@ mod tests {
     fn raw_task_options_errors_with_non_directory_as_working_dir() {
         let opts = RawTaskOptions {
             working_directory: Some("README.md".to_string()),
-            environment: None,
+            ..Default::default()
         };
         let calling_directory_buf = current_dir().unwrap();
         let path = calling_directory_buf.as_path();
@@ -176,7 +176,7 @@ mod tests {
     fn raw_task_options_errors_with_non_existing_path_as_working_dir() {
         let opts = RawTaskOptions {
             working_directory: Some("this_path_should_not_exist_in_the_repo".to_string()),
-            environment: None,
+            ..Default::default()
         };
         let calling_directory_buf = current_dir().unwrap();
         let path = calling_directory_buf.as_path();
@@ -195,7 +195,7 @@ mod tests {
     fn raw_task_options_constructs_absolute_dir_correctly() {
         let opts = RawTaskOptions {
             working_directory: Some("/tmp".to_string()),
-            environment: None,
+            ..Default::default()
         };
         let calling_directory_buf = current_dir().unwrap();
         let path = calling_directory_buf.as_path();
@@ -215,8 +215,8 @@ mod tests {
         test_map.insert("BRAVO".to_string(), "bravo_val".to_string());
 
         let opts = RawTaskOptions {
-            working_directory: None,
             environment: Some(test_map),
+            ..Default::default()
         };
         let calling_directory_buf = current_dir().unwrap();
         let path = calling_directory_buf.as_path();

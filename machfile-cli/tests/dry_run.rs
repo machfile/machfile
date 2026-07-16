@@ -63,3 +63,65 @@ options.environment.MACH_TEST = "as"
     temp.close().unwrap();
     Ok(())
 }
+
+#[test]
+fn dry_run_shows_provided_additional_arguments() -> Result<(), Box<dyn std::error::Error>> {
+    // Create temporary configuration file
+    let temp = assert_fs::TempDir::new().unwrap();
+    let config_file = temp.child("mach.toml");
+    config_file
+        .write_str(
+            r#"[test]
+script = "touch asdf.txt"
+options.allow_args = true"#,
+        )
+        .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("mach");
+
+    cmd.arg("test")
+        .arg("--dry-run")
+        .arg("asa")
+        .arg("def")
+        .current_dir(&temp);
+
+    cmd.assert().success().stdout(
+        predicate::str::contains("Would execute")
+            .and(predicate::str::contains("touch asdf.txt asa def")),
+    );
+
+    temp.close().unwrap();
+    Ok(())
+}
+
+#[test]
+fn dry_run_shows_provided_arguments_only_for_first_command()
+-> Result<(), Box<dyn std::error::Error>> {
+    // Create temporary configuration file
+    let temp = assert_fs::TempDir::new().unwrap();
+    let config_file = temp.child("mach.toml");
+    config_file
+        .write_str(
+            r#"[test]
+script = "touch asdf.txt\ntouch xd"
+options.allow_args = true"#,
+        )
+        .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("mach");
+
+    cmd.arg("test")
+        .arg("--dry-run")
+        .arg("asa")
+        .arg("def")
+        .current_dir(&temp);
+
+    cmd.assert().success().stdout(
+        predicate::str::contains("Would execute \"\x1b[1mtouch asdf.txt asa def\x1b[0m\"").and(
+            predicate::str::contains("Would execute \"\x1b[1mtouch xd\x1b[0m\""),
+        ),
+    );
+
+    temp.close().unwrap();
+    Ok(())
+}
