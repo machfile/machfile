@@ -8,12 +8,11 @@ use crossterm::{
 };
 use log::warn;
 
-use crate::cli_config::{CliConfig, create_early_cli_config};
+use machfile::{Builder, config::Config, load_config, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
 use crate::config_info::{print_config, print_options, print_task_config};
-use machfile::{config::Config, load_config, utils::CommandError};
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -95,8 +94,6 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
 
-    let mut cli_config = create_early_cli_config();
-
     let config = match load_config(config_override) {
         Err(error) => {
             match error {
@@ -123,8 +120,15 @@ pub fn cli() -> Result<(), CommandError> {
         Ok(conf) => Some(conf),
     };
 
+    let Ok(builder_config) = Builder::from_current_dir().build() else {
+        return Err(CommandError {
+            message: String::new(),
+        });
+    };
+
+    println!("{builder_config:?}");
+
     let matches = build_cli_commands(&config).get_matches();
-    cli_config.update_from_matches(&matches);
 
     match matches.subcommand() {
         None => {
@@ -151,7 +155,7 @@ pub fn cli() -> Result<(), CommandError> {
                 ("auto_complete", args) => handle_auto_complete(args),
                 (name, _args) => {
                     if matches.get_flag("dry_run") {
-                        display_task(&conf, name, &cli_config)
+                        display_task(&conf, name)
                     } else if matches.get_flag("show_config") {
                         print_task_config(&conf, cmd);
                         Ok(())
@@ -218,7 +222,6 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
 fn display_task(
     config: &Config,
     task_name: &str,
-    cli_config: &CliConfig,
 ) -> Result<(), CommandError> {
     let _ = get_and_validate_task(config, task_name)?;
 
@@ -239,9 +242,9 @@ fn display_task(
             ResetColor,
         );
 
-        if cli_config.is_verbose() {
-            print_options(&mut stdout, &task.options);
-        }
+        // if cli_config.is_verbose() {
+        //     print_options(&mut stdout, &task.options);
+        // }
 
         if let Some(script) = &task.script {
             for cmd in script {

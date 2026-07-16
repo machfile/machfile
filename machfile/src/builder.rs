@@ -1,7 +1,11 @@
-use std::{env, path::PathBuf};
+use std::{env, fs::read_to_string, path::PathBuf};
 
 use crate::{
-    MachConfig, config_finder::get_mach_file_path, environment::{Environment, EnvironmentParseError}, utils::ConfigParseError
+    Config, MachConfig,
+    config_finder::{check_dir_for_config, get_mach_file_path},
+    environment::{Environment, EnvironmentParseError},
+    parse_config,
+    utils::ConfigParseError,
 };
 
 pub enum BuilderError {
@@ -63,22 +67,46 @@ impl Builder {
 
     /// Construct the `MachConfig` from the settings
     pub fn build(self) -> Result<MachConfig, BuilderError> {
-        let config = {
-            if self.disable_auto_discover {
-                // TODO direct parse or error
+        let config: Config = {
+            let path = if self.disable_auto_discover {
+                match check_dir_for_config(&self.directory) {
+                    Ok(p) => {
+                        if let Some(p) = p {
+                            p
+                        } else {
+                            return Err(BuilderError::ConfigParseError(
+                                ConfigParseError::NoConfigFile,
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        return Err(BuilderError::ConfigParseError(e));
+                    }
+                }
             } else {
-                let path = match get_mach_file_path(&self.directory) {
+                match get_mach_file_path(&self.directory) {
                     Ok(p) => p,
                     Err(e) => {
                         return Err(BuilderError::ConfigParseError(e));
                     }
-                } 
+                }
+            };
 
-                // TODO parse error
+            let Ok(content) = read_to_string(path.clone()) else {
+                return Err(BuilderError::ConfigParseError(
+                    ConfigParseError::CorruptConfigFile,
+                ));
+            };
+
+            match parse_config(&content, &path) {
+                Ok(c) => c,
+                Err(e) => {
+                    return Err(BuilderError::ConfigParseError(e));
+                }
             }
         };
 
-        let environment = if let Some(env_file) = self.env_file_override {
+        let environment: Environment = if let Some(env_file) = self.env_file_override {
             if !env_file.is_file() {
                 return Err(BuilderError::EnvParseError(
                     EnvironmentParseError::NoEnvironmentFile,
@@ -96,7 +124,7 @@ impl Builder {
 
         Ok(MachConfig {
             environment,
-            config: (),
+            config,
         })
     }
 }

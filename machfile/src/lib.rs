@@ -70,8 +70,9 @@ pub mod config_finder;
 mod environment;
 mod raw_config;
 
-
-pub mod builder;
+mod builder;
+pub use builder::Builder;
+pub use builder::BuilderError;
 
 pub use config::Config;
 
@@ -82,6 +83,7 @@ use utils::ConfigParseError;
 use crate::environment::Environment;
 
 /// The `MachConfig` is the main API for machfile
+#[derive(Debug)]
 pub struct MachConfig {
     pub environment: Environment,
     pub config: Config,
