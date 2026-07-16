@@ -9,10 +9,7 @@ use crossterm::{
 use log::warn;
 
 use machfile::{
-    Builder, BuilderError,
-    config::Config,
-    load_config,
-    utils::CommandError,
+    Builder, BuilderError, MachConfig, config::Config, load_config, utils::CommandError,
 };
 
 #[cfg(feature = "complete")]
@@ -190,8 +187,7 @@ pub fn cli() -> Result<(), CommandError> {
                         print_task_config(&conf.config, cmd);
                         Ok(())
                     } else {
-                        // TODO: Execute task here
-                        Ok(())
+                        run_task(&conf, name)
                     }
                 }
             }
@@ -199,16 +195,8 @@ pub fn cli() -> Result<(), CommandError> {
     }
 }
 
-fn get_and_validate_task<'a>(
-    config: &'a Config,
-    task_name: &str,
-) -> Result<&'a machfile::config::Task, CommandError> {
-    let Some(task) = config.tasks.get(task_name) else {
-        return Err(CommandError {
-            message: format!("Task \"{task_name}\" not found in configuration."),
-        });
-    };
-
+fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
+    let task = config.config.tasks.get(task_name).unwrap();
     if task.script.is_none() && task.deps.is_empty() {
         let _ = execute!(
             io::stdout(),
@@ -225,28 +213,6 @@ fn get_and_validate_task<'a>(
         });
     }
 
-    Ok(task)
-}
-
-fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
-    let _ = get_and_validate_task(config, task_name)?;
-
-    let chain = config.get_execution_chain(task_name);
-
-    for task in chain {
-        let _ = execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Blue),
-            Print("Running task \""),
-            SetAttribute(Attribute::Bold),
-            Print(&task.name),
-            SetAttribute(Attribute::Reset),
-            SetForegroundColor(Color::Blue),
-            Print("\"\n"),
-            ResetColor,
-        );
-        task.execute()?;
-    }
     Ok(())
 }
 
@@ -254,8 +220,6 @@ fn display_task(
     config: &Config,
     task_name: &str,
 ) -> Result<(), CommandError> {
-    let _ = get_and_validate_task(config, task_name)?;
-
     let chain = config.get_execution_chain(task_name);
 
     let mut stdout = io::stdout();

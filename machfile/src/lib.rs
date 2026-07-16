@@ -90,6 +90,21 @@ pub struct MachConfig {
 }
 
 impl MachConfig {
+    /// Get a vector of task to execute
+    ///
+    /// These tasks have had their script and environment variables expanded and are ready to be
+    /// executed.
+    pub fn get_task_execution_chain(&self, name: &str) -> Vec<Task> {
+        let mut tasks = vec![];
+        for t in self.config.get_execution_chain(name) {
+            let mut task = t.clone();
+            task = task.evaluate_environment(&self.environment).unwrap();
+            tasks.push(task);
+        }
+
+        tasks
+    }
+
     /// Execute a task by name
     ///
     /// Runs the entire chain of dependencies
