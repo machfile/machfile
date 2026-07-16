@@ -8,7 +8,12 @@ use crossterm::{
 };
 use log::warn;
 
-use machfile::{Builder, config::Config, load_config, utils::CommandError};
+use machfile::{
+    Builder, BuilderError,
+    config::Config,
+    load_config,
+    utils::CommandError,
+};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
@@ -120,10 +125,35 @@ pub fn cli() -> Result<(), CommandError> {
         Ok(conf) => Some(conf),
     };
 
-    let Ok(builder_config) = Builder::from_current_dir().build() else {
-        return Err(CommandError {
-            message: String::new(),
-        });
+    let builder_config = match Builder::from_current_dir().build() {
+        Err(e) => {
+            match e {
+                BuilderError::EnvParseError(e) => {
+                    warn!("Failed to parse environment: {e}");
+                }
+                BuilderError::ConfigParseError(e) => match e {
+                    machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
+                        warn!("{message}");
+                        let _ = execute!(
+                            io::stdout(),
+                            SetForegroundColor(Color::Red),
+                            SetAttribute(Attribute::Bold),
+                            Print("[Error]"),
+                            SetAttribute(Attribute::Reset),
+                            SetForegroundColor(Color::Red),
+                            Print(" Failed to parse the configuration:\n"),
+                            Print(message),
+                            ResetColor,
+                        );
+                    }
+                    _ => {
+                        warn!("Failed to load/parse configuration: {e}");
+                    }
+                },
+            }
+            None
+        }
+        Ok(conf) => Some(conf),
     };
 
     println!("{builder_config:?}");
@@ -148,19 +178,20 @@ pub fn cli() -> Result<(), CommandError> {
                 });
             }
 
-            let conf = config.unwrap();
+            let conf = builder_config.unwrap();
 
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _args) => {
+                (name, _) => {
                     if matches.get_flag("dry_run") {
-                        display_task(&conf, name)
+                        display_task(&conf.config, name)
                     } else if matches.get_flag("show_config") {
-                        print_task_config(&conf, cmd);
+                        print_task_config(&conf.config, cmd);
                         Ok(())
                     } else {
-                        run_task(&conf, name)
+                        // TODO: Execute task here
+                        Ok(())
                     }
                 }
             }
