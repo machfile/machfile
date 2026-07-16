@@ -1,4 +1,8 @@
-use std::{env, io::{self, Write}, path::PathBuf};
+use std::{
+    env,
+    io::{self, Write},
+    path::PathBuf,
+};
 
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
@@ -227,10 +231,7 @@ fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
-fn display_task(
-    config: &Config,
-    task_name: &str,
-) -> Result<(), CommandError> {
+fn display_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
     let chain = config.get_execution_chain(task_name);
 
     let mut stdout = io::stdout();
