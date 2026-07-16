@@ -39,6 +39,7 @@ pub struct Builder {
     env_file_override: Option<PathBuf>,
     disable_env_file: bool,
     disable_auto_discover: bool,
+    verbose: bool,
     config: Option<Config>,
 }
 
@@ -71,6 +72,18 @@ impl Builder {
     /// Do not try to find a mach config by going upwards
     pub fn disable_auto_discover(mut self) -> Self {
         self.disable_auto_discover = true;
+        self
+    }
+
+    /// Set verbose flag
+    pub fn enable_verbose(mut self) -> Self {
+        self.verbose = true;
+        self
+    }
+
+    /// Remove verbose flag
+    pub fn disable_verbose(mut self) -> Self {
+        self.verbose = false;
         self
     }
 
@@ -126,9 +139,12 @@ impl Builder {
             }
         };
 
+        let is_verbose = self.verbose;
+
         Ok(MachConfig {
             environment,
             config,
+            is_verbose,
         })
     }
 

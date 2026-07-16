@@ -9,7 +9,7 @@ use crossterm::{
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
-use log::warn;
+use log::{debug, warn};
 
 use machfile::{Builder, Config, MachConfig, utils::CommandError};
 
@@ -59,6 +59,14 @@ pub fn build_cli_commands(config: &Option<&Config>) -> Command {
                 .conflicts_with("disable_env_file")
                 .long("env-file")
                 .help("Override env file path"),
+        )
+        .arg(
+            Arg::new("verbose")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .long("verbose")
+                .short('v')
+                .help("Show additional information"),
         );
 
     if let Some(conf) = config {
@@ -71,31 +79,22 @@ pub fn build_cli_commands(config: &Option<&Config>) -> Command {
             app = app.subcommand(sub);
         }
 
-        app = app.arg(
-            Arg::new("show_config")
-                .action(ArgAction::SetTrue)
-                .global(true)
-                .long("show-config")
-                .help("Show detected configuration"),
-        );
-
-        app = app.arg(
-            Arg::new("dry_run")
-                .action(ArgAction::SetTrue)
-                .global(true)
-                .long("dry-run")
-                .help("Displays each script that would be executed without executing them"),
-        );
+        app = app
+            .arg(
+                Arg::new("show_config")
+                    .action(ArgAction::SetTrue)
+                    .global(true)
+                    .long("show-config")
+                    .help("Show detected configuration"),
+            )
+            .arg(
+                Arg::new("dry_run")
+                    .action(ArgAction::SetTrue)
+                    .global(true)
+                    .long("dry-run")
+                    .help("Displays each script that would be executed without executing them"),
+            );
     }
-
-    app = app.arg(
-        Arg::new("verbose")
-            .action(ArgAction::SetTrue)
-            .global(true)
-            .long("verbose")
-            .short('v')
-            .help("Show additional information"),
-    );
 
     app
 }
@@ -147,11 +146,15 @@ pub fn cli() -> Result<(), CommandError> {
     let matches = build_cli_commands(&config).get_matches();
 
     if matches.get_flag("disable_env_file") {
-        println!("Disable env file: {}", matches.get_flag("disable_env_file"));
+        debug!("Disable env file: {}", matches.get_flag("disable_env_file"));
         builder = builder.disable_env_file();
     }
     if let Some(env_file) = matches.get_one::<String>("env_file") {
         builder = builder.with_env_file(PathBuf::from(env_file));
+    }
+
+    if matches.get_flag("verbose") {
+        builder = builder.enable_verbose();
     }
 
     let mach_config = builder.build();
@@ -181,7 +184,7 @@ pub fn cli() -> Result<(), CommandError> {
                 ("auto_complete", args) => handle_auto_complete(args),
                 (name, _) => {
                     if matches.get_flag("dry_run") {
-                        display_task(&conf.config, name)
+                        display_task(&conf, name)
                     } else if matches.get_flag("show_config") {
                         print_task_config(&conf.config, cmd);
                         Ok(())
@@ -231,8 +234,8 @@ fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
     Ok(())
 }
 
-fn display_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
-    let chain = config.get_execution_chain(task_name);
+fn display_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
+    let chain = config.config.get_execution_chain(task_name);
 
     let mut stdout = io::stdout();
 
@@ -249,9 +252,9 @@ fn display_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
             ResetColor,
         );
 
-        // if cli_config.is_verbose() {
-        //     print_options(&mut stdout, &task.options);
-        // }
+        if config.is_verbose {
+            print_options(&mut stdout, &task.options);
+        }
 
         if let Some(script) = &task.script {
             for cmd in script {

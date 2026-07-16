@@ -87,6 +87,7 @@ use crate::{config::Task, environment::Environment, utils::CommandError};
 pub struct MachConfig {
     pub environment: Environment,
     pub config: Config,
+    pub is_verbose: bool,
 }
 
 impl MachConfig {
