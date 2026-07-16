@@ -39,7 +39,6 @@ pub fn handle_setup_complete(args: &ArgMatches) -> Result<(), CommandError> {
     let script = match shell {
         Shell::Zsh => {
             r#"
-# Load mach autocompletion
 _update_completion() {
     local auto_complete_output
     auto_complete_output=$(mach auto_complete zsh 2>&1)
@@ -59,7 +58,6 @@ _update_completion
         }
         Shell::Bash => {
             r#"
-# Load mach autocompletion
 _update_completion() {
     local auto_complete_output
     auto_complete_output=$(mach auto_complete bash 2>&1)
@@ -94,7 +92,7 @@ chpwd() {
 pub fn handle_auto_complete(args: &ArgMatches) -> Result<(), CommandError> {
     let shell = args.get_one::<Shell>("shell").unwrap();
 
-    if !matches!(shell, Shell::Zsh) || !matches!(shell, Shell::Bash) {
+    if !matches!(shell, Shell::Zsh) && !matches!(shell, Shell::Bash) {
         return Err(CommandError {
             message: "Unsupported shell".to_owned(),
         });
