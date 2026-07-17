@@ -49,7 +49,7 @@ pub fn get_mach_file_path(directory: &Path) -> Result<PathBuf, ConfigParseError>
 /// # Errors
 ///
 /// - Returns [`ConfigParseError::MultipleConfigFiles`] if multiple config files with different extensions are found in the same directory.
-fn check_dir_for_config(dir: &Path) -> Result<Option<PathBuf>, ConfigParseError> {
+pub fn check_dir_for_config(dir: &Path) -> Result<Option<PathBuf>, ConfigParseError> {
     let mut path = dir.to_path_buf();
     path.push("mach");
 

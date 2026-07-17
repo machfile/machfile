@@ -67,7 +67,12 @@ pub mod utils;
 
 pub mod config;
 pub mod config_finder;
+pub mod environment;
 mod raw_config;
+
+mod builder;
+pub use builder::Builder;
+pub use builder::BuilderError;
 
 pub use config::Config;
 
@@ -75,7 +80,58 @@ use config_finder::get_mach_file_path;
 use raw_config::RawConfig;
 use utils::ConfigParseError;
 
-/// Load a mach configuration into memory
+use crate::{config::Task, environment::Environment, utils::CommandError};
+
+/// The `MachConfig` is the main API for machfile
+#[derive(Debug)]
+pub struct MachConfig {
+    pub environment: Environment,
+    pub config: Config,
+    pub is_verbose: bool,
+}
+
+impl MachConfig {
+    /// Get a vector of task to execute
+    ///
+    /// These tasks have had their script and environment variables expanded and are ready to be
+    /// executed.
+    pub fn get_task_execution_chain(&self, name: &str) -> Vec<Task> {
+        let mut tasks = vec![];
+        for t in self.config.get_execution_chain(name) {
+            let mut task = t.clone();
+            task = task.evaluate_environment(&self.environment).unwrap();
+            tasks.push(task);
+        }
+
+        tasks
+    }
+
+    /// Execute a task by name
+    ///
+    /// Runs the entire chain of dependencies
+    pub fn execute_task(&self, name: &str) -> Result<usize, CommandError> {
+        let tasks = self.config.get_execution_chain(name);
+
+        for task in tasks {
+            self.execute_single_task(task)?;
+        }
+        Ok(0)
+    }
+
+    /// Execute a task by name
+    ///
+    /// Does **not** run dependencies. Use [`MachConfig::execute_task`] instead.
+    pub fn execute_single_task(&self, t: &Task) -> Result<usize, CommandError> {
+        let mut task = t.clone();
+
+        task = task.evaluate_environment(&self.environment).unwrap();
+        task.execute()?;
+
+        Ok(0)
+    }
+}
+
+/// Load a mach configuration
 ///
 /// If an override is provided, the provided override is loaded. Otherwise, the function tries to
 /// find a configuration file in the current directory, and in the case of the working directory

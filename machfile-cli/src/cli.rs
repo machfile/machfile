@@ -1,19 +1,21 @@
-use std::io::Write;
-use std::{env, io};
+use std::{
+    env,
+    io::{self, Write},
+    path::PathBuf,
+};
 
 use clap::{Arg, ArgAction, Command, builder::styling, crate_authors, crate_version};
 use crossterm::{
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
 };
-use log::warn;
+use log::{debug, warn};
 
-use crate::cli_config::{CliConfig, create_early_cli_config};
+use machfile::{Builder, Config, MachConfig, utils::CommandError};
 
 #[cfg(feature = "complete")]
 use crate::complete::{handle_auto_complete, handle_setup_complete};
 use crate::config_info::{print_config, print_options, print_task_config};
-use machfile::{config::Config, load_config, utils::CommandError};
 
 /// Configure styles for clap
 fn build_clap_styles() -> styling::Styles {
@@ -28,7 +30,7 @@ fn build_clap_styles() -> styling::Styles {
 ///
 /// This constructs dynamic commands based on the found configuration. See [`parse_config`] for how
 /// configuration is loaded.
-pub fn build_cli_commands(config: &Option<Config>) -> Command {
+pub fn build_cli_commands(config: &Option<&Config>) -> Command {
     let mut app = Command::new("mach")
         .author(crate_authors!("\n"))
         .version(crate_version!())
@@ -43,6 +45,30 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
         app = add_complete_commands(app);
     }
 
+    // Environment arguments
+    app = app
+        .arg(
+            Arg::new("disable_env_file")
+                .action(ArgAction::SetTrue)
+                .long("no-env-file")
+                .help("Disable env file parsing"),
+        )
+        .arg(
+            Arg::new("env_file")
+                .action(ArgAction::Set)
+                .conflicts_with("disable_env_file")
+                .long("env-file")
+                .help("Override env file path"),
+        )
+        .arg(
+            Arg::new("verbose")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .long("verbose")
+                .short('v')
+                .help("Show additional information"),
+        );
+
     if let Some(conf) = config {
         for (name, command) in &conf.tasks {
             let mut sub = Command::new(name);
@@ -53,31 +79,22 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
             app = app.subcommand(sub);
         }
 
-        app = app.arg(
-            Arg::new("show_config")
-                .action(ArgAction::SetTrue)
-                .global(true)
-                .long("show-config")
-                .help("Show detected configuration"),
-        );
-
-        app = app.arg(
-            Arg::new("dry_run")
-                .action(ArgAction::SetTrue)
-                .global(true)
-                .long("dry-run")
-                .help("Displays each script that would be executed without executing them"),
-        );
+        app = app
+            .arg(
+                Arg::new("show_config")
+                    .action(ArgAction::SetTrue)
+                    .global(true)
+                    .long("show-config")
+                    .help("Show detected configuration"),
+            )
+            .arg(
+                Arg::new("dry_run")
+                    .action(ArgAction::SetTrue)
+                    .global(true)
+                    .long("dry-run")
+                    .help("Displays each script that would be executed without executing them"),
+            );
     }
-
-    app = app.arg(
-        Arg::new("verbose")
-            .action(ArgAction::SetTrue)
-            .global(true)
-            .long("verbose")
-            .short('v')
-            .help("Show additional information"),
-    );
 
     app
 }
@@ -94,12 +111,15 @@ pub fn build_cli_commands(config: &Option<Config>) -> Command {
 /// Throws errors upwards, so the CLI can exit accordingly
 pub fn cli() -> Result<(), CommandError> {
     let config_override = env::var_os("MACH_CONFIG_PATH");
+    let mut builder = if let Some(c) = config_override {
+        Builder::new(PathBuf::from(c))
+    } else {
+        Builder::from_current_dir()
+    };
 
-    let mut cli_config = create_early_cli_config();
-
-    let config = match load_config(config_override) {
-        Err(error) => {
-            match error {
+    let config = match builder.get_config() {
+        Err(e) => {
+            match e {
                 machfile::utils::ConfigParseError::InvalidTaskDefinition(message) => {
                     warn!("{message}");
                     let _ = execute!(
@@ -115,7 +135,7 @@ pub fn cli() -> Result<(), CommandError> {
                     );
                 }
                 _ => {
-                    warn!("Failed to load/parse configuration: {error}");
+                    warn!("Failed to load/parse configuration: {e}");
                 }
             }
             None
@@ -124,36 +144,49 @@ pub fn cli() -> Result<(), CommandError> {
     };
 
     let matches = build_cli_commands(&config).get_matches();
-    cli_config.update_from_matches(&matches);
+
+    if matches.get_flag("disable_env_file") {
+        debug!("Disable env file: {}", matches.get_flag("disable_env_file"));
+        builder = builder.disable_env_file();
+    }
+    if let Some(env_file) = matches.get_one::<String>("env_file") {
+        builder = builder.with_env_file(PathBuf::from(env_file));
+    }
+
+    if matches.get_flag("verbose") {
+        builder = builder.enable_verbose();
+    }
+
+    let mach_config = builder.build();
 
     match matches.subcommand() {
         None => {
             if matches.get_flag("show_config") {
-                let conf = config.unwrap();
-                print_config(&conf);
+                let conf = mach_config.unwrap();
+                print_config(&conf.config);
             }
             Ok(())
         }
         #[cfg(feature = "complete")]
         Some(("setup_complete", args)) => handle_setup_complete(args),
         Some((cmd, args)) => {
-            if config.is_none() {
+            if mach_config.is_err() {
                 println!("Failed to parse configuration");
                 return Err(CommandError {
                     message: "failed to parse configuration".to_owned(),
                 });
             }
 
-            let conf = config.unwrap();
+            let conf = mach_config.unwrap();
 
             match (cmd, args) {
                 #[cfg(feature = "complete")]
                 ("auto_complete", args) => handle_auto_complete(args),
-                (name, _args) => {
+                (name, _) => {
                     if matches.get_flag("dry_run") {
-                        display_task(&conf, name, &cli_config)
+                        display_task(&conf, name)
                     } else if matches.get_flag("show_config") {
-                        print_task_config(&conf, cmd);
+                        print_task_config(&conf.config, cmd);
                         Ok(())
                     } else {
                         run_task(&conf, name)
@@ -164,16 +197,8 @@ pub fn cli() -> Result<(), CommandError> {
     }
 }
 
-fn get_and_validate_task<'a>(
-    config: &'a Config,
-    task_name: &str,
-) -> Result<&'a machfile::config::Task, CommandError> {
-    let Some(task) = config.tasks.get(task_name) else {
-        return Err(CommandError {
-            message: format!("Task \"{task_name}\" not found in configuration."),
-        });
-    };
-
+fn run_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
+    let task = config.config.tasks.get(task_name).unwrap();
     if task.script.is_none() && task.deps.is_empty() {
         let _ = execute!(
             io::stdout(),
@@ -189,14 +214,7 @@ fn get_and_validate_task<'a>(
             message: format!("Task \"{task_name}\" has no script or dependencies."),
         });
     }
-
-    Ok(task)
-}
-
-fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
-    let _ = get_and_validate_task(config, task_name)?;
-
-    let chain = config.get_execution_chain(task_name);
+    let chain = config.get_task_execution_chain(task_name);
 
     for task in chain {
         let _ = execute!(
@@ -212,17 +230,12 @@ fn run_task(config: &Config, task_name: &str) -> Result<(), CommandError> {
         );
         task.execute()?;
     }
+
     Ok(())
 }
 
-fn display_task(
-    config: &Config,
-    task_name: &str,
-    cli_config: &CliConfig,
-) -> Result<(), CommandError> {
-    let _ = get_and_validate_task(config, task_name)?;
-
-    let chain = config.get_execution_chain(task_name);
+fn display_task(config: &MachConfig, task_name: &str) -> Result<(), CommandError> {
+    let chain = config.config.get_execution_chain(task_name);
 
     let mut stdout = io::stdout();
 
@@ -239,7 +252,7 @@ fn display_task(
             ResetColor,
         );
 
-        if cli_config.is_verbose() {
+        if config.is_verbose {
             print_options(&mut stdout, &task.options);
         }
 
