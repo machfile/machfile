@@ -2,11 +2,15 @@ name: Rust
 
 on:
   push:
-    branches:
-      - "master"
-  pull_request:
-    branches:
-      - "master"
+    paths-ignore:
+      - 'README.md'
+      - '**/README.md'
+      - '**/CHANGELOG.md'
+      - '.github/workflows/cd.yml'
+      - '.github/workflows/release/plz.yml'
+      - '.gitignore'
+      - 'release-plz.toml'
+
   workflow_dispatch:
 
 env:
