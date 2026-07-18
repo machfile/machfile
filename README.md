@@ -108,6 +108,9 @@ The following options are currently supported:
   configuration file
 - `environment` - Dictonary of keys and values that will be injected into the execution environment
   of the `script` commands.
+- `allow_args` - If true, the task can be called with additional arguments that will be passed onto
+  the first command of the last executed task (the called task if it has a `script` or the last
+  dependency in the execution chain).
 
 ### Environment files
 

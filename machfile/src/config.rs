@@ -108,9 +108,29 @@ impl Task {
     ///
     /// You should probably [`Task::evaluate_environment`] before calling this.
     pub fn execute(&self) -> Result<(), CommandError> {
+        self.execute_with_args(None)
+    }
+
+    /// Execute a task with additional arguments
+    ///
+    /// You should probably [`Task::evaluate_environment`] before calling this.
+    pub fn execute_with_args(&self, mut add_args: Option<Vec<String>>) -> Result<(), CommandError> {
         if let Some(script) = &self.script {
-            for command in script {
-                let mut sys_command = command.create_sys_command();
+            for (i, command) in script.iter().enumerate() {
+                let mut sys_command = if i == 0
+                    && let Some(ref mut arg_vec) = add_args
+                {
+                    let mut args = command.args.clone();
+                    args.append(arg_vec);
+                    let cmd = ScriptCommand {
+                        command: command.command.clone(),
+                        args,
+                    };
+
+                    cmd.create_sys_command()
+                } else {
+                    command.create_sys_command()
+                };
 
                 for (key, value) in &self.options.environment {
                     sys_command.env(key, value);
@@ -168,6 +188,7 @@ pub struct TaskOptions {
     /// Environmental variables that will be added to the environment in which the commands will be
     /// executed
     pub environment: HashMap<String, String>,
+    pub allow_args: bool,
 }
 
 /// Individual command that forms a [task](`TaskConfig`)
