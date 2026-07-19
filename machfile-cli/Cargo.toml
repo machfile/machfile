@@ -1,6 +1,6 @@
 [package]
 name = "machfile-cli"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "A simple task system, for when a build system is to much"
 repository = "https://github.com/machfile/machfile"
@@ -18,7 +18,7 @@ clap_complete = { version = "4.6.7", optional = true }
 crossterm = "0.29.0"
 env_logger = "0.11.11"
 log = "0.4.33"
-machfile = { version = "0.3.0", path = "../machfile" }
+machfile = { version = "0.3.1", path = "../machfile" }
 
 [[bin]]
 name = "mach"
