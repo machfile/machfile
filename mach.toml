@@ -1,7 +1,9 @@
 [run]
 script = "cargo run"
 desc = "Run with debug logging"
-options.environment.RUST_LOG = "mach=debug,info"
+[run.options]
+environment.RUST_LOG = "mach=debug,info"
+allow_args = true
 
 [build]
 script = "cargo build"
@@ -17,6 +19,7 @@ desc = "Remove cache and outputs"
 [test]
 script = "cargo test"
 desc = "Run rust tests"
+options.allow_args = true
 
 [check_target_size]
 script = "du -d1 -h"
@@ -32,5 +35,3 @@ options.working_directory = "machfile-cli"
 desc = "Clean dependencies and artifacts, then install the current version"
 deps = ["clean", "install"]
 
-[test_env]
-script = "echo $EDITOR"
