@@ -14,21 +14,46 @@ provides the basic functionality of the task runner. The binary is called `mach`
 
 ## Installation
 
+### AUR
+
+We package mach for the [Arch Linux User Repository](https://aur.archlinux.org/packages/machfile-cli).
+You can install it with your favorite AUR helper:
+
+```shell
+paru -S machfile-cli
+```
+
+### Homebrew
+
+We provide a homebrew tap at `machfile/tap`:
+
+```shell
+brew install machfile/tap/machfile
+```
+
+### Cargo
+
 You can install the binary with `cargo`:
 
 ```shell
 cargo install machfile-cli --locked
 ```
 
-Or clone the repository and install manually:
+### Binary download
+
+Binaries are build automatically on release and can be downloaded from the [GitHub releases page](https://github.com/machfile/machfile/releases).
+
+#### Source
+
+Clone the repository and install manually (this requires `cargo` to be available):
 
 ```shell
 git clone https://github.com/machfile/machfile.git
 cd mach
-cargo install --path .
+cargo install --path machfile-cli
 ```
 
-### Auto-complete setup
+## Auto-complete setup
 
 Mach supports dynamic auto completion in ZSH and bash:
 
