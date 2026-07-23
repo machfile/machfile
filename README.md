@@ -43,7 +43,7 @@ cargo install machfile-cli --locked
 
 Binaries are build automatically on release and can be downloaded from the [GitHub releases page](https://github.com/machfile/machfile/releases).
 
-#### Source
+### Source
 
 Clone the repository and install manually (this requires `cargo` to be available):
 
