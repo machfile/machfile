@@ -39,7 +39,7 @@ You can install the binary with `cargo`:
 cargo install machfile-cli --locked
 ```
 
-### Binary download
+### Prebuild binaries
 
 Binaries are build automatically on release and can be downloaded from the [GitHub releases page](https://github.com/machfile/machfile/releases).
 
