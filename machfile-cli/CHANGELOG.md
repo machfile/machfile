@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/machfile/machfile/compare/machfile-cli-v0.2.2...machfile-cli-v0.2.3) - 2026-07-23
+
+### Other
+
+- add additional links to README
+- fix header level in README
+- fix README
+- update installation instructions
+
 ## [0.2.2](https://github.com/machfile/machfile/compare/machfile-cli-v0.2.1...machfile-cli-v0.2.2) - 2026-07-19
 
 ### Other
