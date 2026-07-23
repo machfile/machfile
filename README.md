@@ -1,7 +1,8 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/machfile/machfile/rust.yml?style=flat-square)
-![Crates.io library version](https://img.shields.io/crates/v/machfile?style=flat-square&label=library%20version)
-![Crates.io CLI version](https://img.shields.io/crates/v/machfile-cli?style=flat-square&label=CLI%20version)
+![Crates.io library version](https://img.shields.io/crates/v/machfile?style=flat-square&label=library%20version&link=https%3A%2F%2Fcrates.io%2Fcrates%2Fmachfile)
+![Crates.io CLI version](https://img.shields.io/crates/v/machfile-cli?style=flat-square&label=CLI%20version&link=https%3A%2F%2Fcrates.io%2Fcrates%2Fmachfile-cli)
 ![Crates.io License](https://img.shields.io/crates/l/machfile-cli?style=flat-square)
+![AUR Version](https://img.shields.io/aur/version/machfile-cli?style=flat-square&link=https%3A%2F%2Faur.archlinux.org%2Fpackages%2Fmachfile-cli)
 
 
 # Machfile
