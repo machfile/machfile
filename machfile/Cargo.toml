@@ -6,6 +6,7 @@ description = "A simple task system, for when a build system is to much"
 repository = "https://github.com/machfile/machfile"
 license = "MIT"
 categories = ["development-tools::build-utils"]
+rust-version = "1.88.0"
 
 [dependencies]
 log = "0.4.33"
