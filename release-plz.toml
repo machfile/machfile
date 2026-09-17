@@ -31,3 +31,22 @@ pr_body = """
 </p></details>
 {% endif %}
 """
+
+[changelog]
+header = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^refactor", group = "<!-- 2 -->Refactor" },
+  { message = "^docs", group = "<!-- 3 -->Documentation" },
+  { message = "^perf", group = "<!-- 4 -->Performance" },
+  { message = "^chore", group = "<!-- 5 -->Miscellaneous Tasks" },
+  { message = "^ci", group = "<!-- 6 -->Continuous Delivery" },
+]
