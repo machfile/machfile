@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/machfile/machfile/compare/machfile-cli-v0.2.3...machfile-cli-v0.2.4) - 2026-09-18
+
+### <!-- 5 -->Miscellaneous Tasks
+
+- set minimum supported rust version for crates
+
 ## [0.2.3](https://github.com/machfile/machfile/compare/machfile-cli-v0.2.2...machfile-cli-v0.2.3) - 2026-07-23
 
 ### Other
