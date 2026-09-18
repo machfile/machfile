@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/machfile/machfile/compare/machfile-v0.3.1...machfile-v0.3.2) - 2026-09-18
+
+### <!-- 5 -->Miscellaneous Tasks
+
+- *(machfile)* upgrade serde-saphyr to 1.3.0
+- set minimum supported rust version for crates
+
 ## [0.3.1](https://github.com/machfile/machfile/compare/machfile-v0.3.0...machfile-v0.3.1) - 2026-07-19
 
 ### Other
