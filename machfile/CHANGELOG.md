@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3](https://github.com/machfile/machfile/compare/machfile-v0.3.2...machfile-v0.3.3) - 2026-09-22
+
+### <!-- 3 -->Documentation
+
+- cleanup READMEs
+- remove [Unreleased] header of always empty section in changelogs
+
 ## [0.3.2](https://github.com/machfile/machfile/compare/machfile-v0.3.1...machfile-v0.3.2) - 2026-09-18
 
 ### <!-- 5 -->Miscellaneous Tasks
