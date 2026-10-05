@@ -79,107 +79,122 @@ fn dir_is_git_root(dir: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, sync::Once};
+    use assert_fs::prelude::*;
 
     use super::*;
 
-    static INIT: Once = Once::new();
-
-    pub fn initialize() {
-        INIT.call_once(|| {
-            let paths = vec![
-                Path::new("./tests/configs/git_dir/.git"),
-                Path::new("./tests/configs/empty_git_dir/.git"),
-            ];
-
-            for path in paths {
-                if path.is_dir() {
-                    continue;
-                } else {
-                    fs::create_dir(path).unwrap_or_else(|_| panic!("Failed to create {path:?}"));
-                }
-            }
-        });
-    }
-
     #[test]
     fn check_dir_for_config_returns_none_on_empty_dir() {
-        let path = Path::new("./tests/configs/no_config");
+        let dir = assert_fs::TempDir::new().unwrap();
 
-        assert!(check_dir_for_config(path).unwrap().is_none());
+        assert!(check_dir_for_config(dir.path()).unwrap().is_none());
+        dir.close().unwrap();
     }
 
     #[test]
     fn check_dir_for_config_finds_toml() {
-        let path = Path::new("./tests/configs/direct_config");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let config = dir.child("mach.toml");
+        config.touch().unwrap();
 
-        assert!(check_dir_for_config(path).unwrap().is_some());
+        assert!(check_dir_for_config(dir.path()).unwrap().is_some());
+        dir.close().unwrap();
     }
 
     #[test]
     fn check_dir_for_config_finds_yaml() {
-        let path = Path::new("./tests/configs/direct_yaml_config");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let config = dir.child("mach.yaml");
+        config.touch().unwrap();
 
-        assert!(check_dir_for_config(path).unwrap().is_some());
+        assert!(check_dir_for_config(dir.path()).unwrap().is_some());
+        dir.close().unwrap();
+
+        let dir = assert_fs::TempDir::new().unwrap();
+        let config = dir.child("mach.yml");
+        config.touch().unwrap();
+
+        assert!(check_dir_for_config(dir.path()).unwrap().is_some());
+        dir.close().unwrap();
     }
 
     #[test]
     fn check_dir_for_config_returns_error_on_multiple_configs() {
-        let path = Path::new("./tests/configs/multiple_configs");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let config = dir.child("mach.toml");
+        config.touch().unwrap();
+        let config2 = dir.child("mach.yaml");
+        config2.touch().unwrap();
 
         assert_eq!(
-            check_dir_for_config(path).unwrap_err(),
+            check_dir_for_config(dir.path()).unwrap_err(),
             ConfigParseError::MultipleConfigFiles
         );
+        dir.close().unwrap();
     }
 
     #[test]
     fn dir_is_git_root_returns_false_on_empty_dir() {
-        let path = Path::new("./tests/configs/no_config");
+        let dir = assert_fs::TempDir::new().unwrap();
 
-        assert!(!dir_is_git_root(path));
+        assert!(!dir_is_git_root(dir.path()));
+        dir.close().unwrap();
     }
 
     #[test]
     fn dir_is_git_root_returns_true_on_dir_with_git_directory() {
-        initialize();
-        let path = Path::new("./tests/configs/git_dir");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let git_dir = dir.child(".git");
+        git_dir.create_dir_all().unwrap();
 
-        assert!(dir_is_git_root(path));
+        assert!(dir_is_git_root(dir.path()));
+        dir.close().unwrap();
     }
 
     #[test]
     fn directory_in_repo_without_config_returns_correct_error() {
-        initialize();
-        let path = Path::new("./tests/configs/empty_git_dir/subdirectory");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let git_dir = dir.child(".git");
+        git_dir.create_dir_all().unwrap();
+        let sub_dir = dir.child("subdirectory");
+        sub_dir.create_dir_all().unwrap();
 
-        let res = get_mach_file_path(path);
+        let res = get_mach_file_path(sub_dir.path());
         assert!(res.is_err());
         assert_eq!(res, Err(ConfigParseError::NoConfigFileInRepo));
+        dir.close().unwrap();
     }
 
     #[test]
     fn directory_in_repo_returns_direct_file_if_found() {
-        initialize();
-        let path = Path::new("./tests/configs/git_dir/subdirectory_with_config");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let git_dir = dir.child(".git");
+        git_dir.create_dir_all().unwrap();
+        let sub_dir = dir.child("subdirectory");
+        sub_dir.create_dir_all().unwrap();
+        let config = sub_dir.child("mach.toml");
+        config.touch().unwrap();
 
-        let res = get_mach_file_path(path);
+        let res = get_mach_file_path(sub_dir.path());
         assert!(res.is_ok());
-        assert_eq!(
-            res,
-            Ok(PathBuf::from(
-                "./tests/configs/git_dir/subdirectory_with_config/mach.toml"
-            ))
-        );
+        assert_eq!(res, Ok(PathBuf::from(config.path())));
+        dir.close().unwrap();
     }
 
     #[test]
     fn directory_in_repo_returns_parent_file_if_found() {
-        initialize();
-        let path = Path::new("./tests/configs/git_dir/subdirectory_without_config");
+        let dir = assert_fs::TempDir::new().unwrap();
+        let git_dir = dir.child(".git");
+        git_dir.create_dir_all().unwrap();
+        let config = dir.child("mach.toml");
+        config.touch().unwrap();
 
-        let res = get_mach_file_path(path);
+        let sub_dir = dir.child("subdirectory");
+        sub_dir.create_dir_all().unwrap();
+
+        let res = get_mach_file_path(sub_dir.path());
         assert!(res.is_ok());
-        assert_eq!(res, Ok(PathBuf::from("./tests/configs/git_dir/mach.toml")));
+        assert_eq!(res, Ok(PathBuf::from(config.path())));
+        dir.close().unwrap();
     }
 }
