@@ -92,6 +92,7 @@ struct RawTaskOptions {
     working_directory: Option<String>,
     environment: Option<HashMap<String, String>>,
     allow_args: Option<bool>,
+    forward_env_file: Option<String>,
 }
 
 impl RawTaskOptions {
@@ -106,7 +107,38 @@ impl RawTaskOptions {
             }
         }
 
-        let environment: HashMap<String, String> = self.environment.unwrap_or_default();
+        let mut environment: HashMap<String, String> = self.environment.unwrap_or_default();
+
+        // Forward env file if specified
+        if let Some(env_file_path) = &self.forward_env_file {
+            let env_file_path = path.join(env_file_path);
+            if !env_file_path.exists() {
+                return Err(ConfigParseError::InvalidTaskDefinition(format!(
+                    "env file does not exist: {}",
+                    env_file_path.display()
+                )));
+            }
+
+            if let Err(_) = std::fs::read_to_string(&env_file_path) {
+                return Err(ConfigParseError::InvalidTaskDefinition(format!(
+                    "could not read env file: {}",
+                    env_file_path.display()
+                )));
+            }
+
+            let env = crate::environment::Environment::load_file(&env_file_path);
+            if let Ok(env) = env {
+                // Merge env file values into environment (env file values override config values)
+                environment.extend(env.values);
+            } else {
+                // Parsing env file failures are non-fatal; continue with partial env
+                log::warn!(
+                    "Warning: env file could not be parsed: {}",
+                    env.unwrap_err()
+                );
+            }
+        }
+
         let allow_args = self.allow_args.unwrap_or_default();
 
         Ok(TaskOptions {
@@ -490,5 +522,252 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert_eq!(error, ConfigParseError::CircularDependencies);
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_parses_correctly() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_parses_XXXXXX");
+        std::fs::write(
+            &env_file, "FOO=bar
+",
+        )
+        .unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+        assert!(task_options.environment.contains_key("FOO"));
+        assert_eq!(task_options.environment.get("FOO").unwrap(), "bar");
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_merges_env_values() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_env_XXXXXX");
+        let env_content = "FOO=bar
+BAZ=qux
+";
+        std::fs::write(&env_file, env_content).unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        assert!(task_options.environment.contains_key("FOO"));
+        assert_eq!(task_options.environment.get("FOO").unwrap(), "bar");
+        assert!(task_options.environment.contains_key("BAZ"));
+        assert_eq!(task_options.environment.get("BAZ").unwrap(), "qux");
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_merges_with_existing_env() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_env_merge_XXXXXX");
+        std::fs::write(&env_file, "FOO=bar\n").unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            environment: Some(std::collections::HashMap::from([(
+                "EXISTING".to_string(),
+                "value".to_string(),
+            )])),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        assert!(task_options.environment.contains_key("EXISTING"));
+        assert_eq!(task_options.environment.get("EXISTING").unwrap(), "value");
+        assert!(task_options.environment.contains_key("FOO"));
+        assert_eq!(task_options.environment.get("FOO").unwrap(), "bar");
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_nonexistent_path_errors() {
+        let opts = RawTaskOptions {
+            forward_env_file: Some("env_file.env".to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&Path::new("/tmp"));
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("env file does not exist"));
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_with_empty_env_file() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_empty_env_XXXXXX");
+        std::fs::write(&env_file, "").unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+        assert!(task_options.environment.is_empty());
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_with_comments_and_empty_lines() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_comments_env_XXXXXX");
+        let env_content = "# This is a comment\n\nFOO=bar\n  \nBAZ=qux\n# Another comment\n";
+        std::fs::write(&env_file, env_content).unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        assert!(task_options.environment.contains_key("FOO"));
+        assert_eq!(task_options.environment.get("FOO").unwrap(), "bar");
+        assert!(task_options.environment.contains_key("BAZ"));
+        assert_eq!(task_options.environment.get("BAZ").unwrap(), "qux");
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_handles_corrupt_env_file() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_corrupt_env_XXXXXX");
+        std::fs::write(&env_file, "INVALID_LINE_WITHOUT_EQUALS").unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        // Parsing env file failures are non-fatal; the task config should still be valid
+        assert!(result.is_ok());
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_with_quoted_values() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_quoted_env_XXXXXX");
+        let env_content = r#"QUOTED="hello world"
+SINGLE_QUOTED='single quotes'
+"#;
+        std::fs::write(&env_file, env_content).unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        assert!(task_options.environment.contains_key("QUOTED"));
+        assert_eq!(
+            task_options.environment.get("QUOTED").unwrap(),
+            "hello world"
+        );
+        assert!(task_options.environment.contains_key("SINGLE_QUOTED"));
+        assert_eq!(
+            task_options.environment.get("SINGLE_QUOTED").unwrap(),
+            "single quotes"
+        );
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_variable_expansion() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_variable_env_XXXXXX");
+        let env_content = "BASE=expanded\nFINAL=\"$BASE value\"\n";
+        std::fs::write(&env_file, env_content).unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        assert!(task_options.environment.contains_key("BASE"));
+        assert_eq!(task_options.environment.get("BASE").unwrap(), "expanded");
+        assert!(task_options.environment.contains_key("FINAL"));
+        assert_eq!(
+            task_options.environment.get("FINAL").unwrap(),
+            "expanded value"
+        );
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
+    }
+
+    #[test]
+    fn raw_task_options_forward_env_file_overrides_existing_env() {
+        let temp_dir = std::env::temp_dir();
+        let env_file = temp_dir.join("mach_test_override_env_XXXXXX");
+        std::fs::write(&env_file, "OVERRIDE=from_file\n").unwrap();
+
+        let opts = RawTaskOptions {
+            forward_env_file: Some(env_file.to_str().unwrap().to_string()),
+            environment: Some(std::collections::HashMap::from([(
+                "OVERRIDE".to_string(),
+                "from_config".to_string(),
+            )])),
+            ..Default::default()
+        };
+
+        let result = opts.parse(&temp_dir);
+        assert!(result.is_ok());
+        let task_options = result.unwrap();
+
+        // Env file values override config values (last one wins)
+        assert_eq!(
+            task_options.environment.get("OVERRIDE").unwrap(),
+            "from_file"
+        );
+
+        // Cleanup
+        std::fs::remove_file(&env_file).unwrap();
     }
 }
