@@ -119,7 +119,7 @@ impl RawTaskOptions {
                 )));
             }
 
-            if let Err(_) = std::fs::read_to_string(&env_file_path) {
+            if std::fs::read_to_string(&env_file_path).is_err() {
                 return Err(ConfigParseError::InvalidTaskDefinition(format!(
                     "could not read env file: {}",
                     env_file_path.display()
